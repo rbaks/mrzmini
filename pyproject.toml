@@ -1,0 +1,58 @@
+[project]
+name = "mrzmini"
+version = "0.1.0"
+description = "Minimal-footprint reimplementation of PassportEye's MRZ detection/reading (numpy + pillow only)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Andrianina Rabakoson", email = "andri.bakoson@gmail.com" },
+]
+keywords = ["mrz", "passport", "ocr", "tesseract", "id-document", "passporteye"]
+dependencies = [
+    "numpy>=1.24",
+    "pillow>=9",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+
+[project.urls]
+Homepage = "https://github.com/rbaks/mrzmini"
+Repository = "https://github.com/rbaks/mrzmini"
+Issues = "https://github.com/rbaks/mrzmini/issues"
+
+[project.scripts]
+mrzmini = "mrzmini.__main__:main"
+
+[dependency-groups]
+# Used only by the parity harness to compare against the real library.
+parity = [
+    "passporteye",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["mrzmini"]
+
+[tool.hatch.build.targets.sdist]
+# Keep the published source archive to the package + project metadata.
+# Excludes local/dev cruft (.claude/, parity harness, CI internals).
+include = [
+    "mrzmini/",
+    "README.md",
+    "LICENSE",
+    "pyproject.toml",
+]
