@@ -7,8 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Version 0.2.0. When tagging `v0.2.0`, rename this heading to
-`## [0.2.0] - YYYY-MM-DD` and its link below to `[0.2.0]: …/compare/v0.1.0...v0.2.0`.
+## [0.2.0] - 2026-10-29
 
 ### Added
 
@@ -65,5 +64,6 @@ Version 0.2.0. When tagging `v0.2.0`, rename this heading to
 - Initial release: minimal-footprint reimplementation of PassportEye's MRZ
   detection and reading pipeline (numpy + Pillow + the `tesseract` binary).
 
-[Unreleased]: https://github.com/rbaks/mrzmini/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/rbaks/mrzmini/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/rbaks/mrzmini/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/rbaks/mrzmini/releases/tag/v0.1.0
