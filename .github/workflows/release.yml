@@ -38,3 +38,40 @@ jobs:
           path: dist/
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    # Runs only after PyPI accepted the upload, so a GitHub release never
+    # advertises a version that isn't installable.
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write  # required to create the release
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Section body between "## [<version>]" and the next "## [" heading
+          # (or the link definitions at the end of the file).
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md > notes.md
+          if ! grep -q '[^[:space:]]' notes.md; then
+            echo "::error::No '## [$version]' section in CHANGELOG.md"
+            exit 1
+          fi
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --title "mrzmini ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md \
+            --verify-tag
