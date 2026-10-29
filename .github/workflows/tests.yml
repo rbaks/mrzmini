@@ -1,0 +1,16 @@
+name: Tests
+
+# Pure-Python test suite: no Tesseract needed (tests never call OCR).
+on:
+  push:
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+      - name: Run tests
+        run: uv run --group dev pytest -q
