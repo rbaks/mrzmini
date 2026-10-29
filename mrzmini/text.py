@@ -1,14 +1,18 @@
 '''
 PassportEye::MRZ: Machine-readable zone extraction and parsing.
 
-This is a verbatim copy of PassportEye's ``passporteye/mrz/text.py``.
+This is a copy of PassportEye's ``passporteye/mrz/text.py``.
 It is pure Python (only depends on the standard library) and is reproduced
-unchanged so that parsing/validation behavior matches upstream exactly.
+unchanged so that parsing/validation behavior matches upstream exactly,
+with one deliberate addition: the 'CNI_FR' type (pre-2021 French national
+identity card, 2x36 non-ICAO MRZ), handled in MRZ.from_ocr only.
+MRZ(lines) called directly behaves exactly as upstream.
 
 Author: Konstantin Tretyakov
 License: MIT
 '''
 # pylint: disable=attribute-defined-outside-init,line-too-long
+import re
 from collections import OrderedDict
 from datetime import datetime
 
@@ -24,7 +28,7 @@ class MRZ(object):
         Represent the MRZ as a list of 2 or 3 lines, create an instance of this class,
         and read off the various fields filled by the parser.
         The first field you should check is .mrz_type.
-        It is either None (no parsing done at all) or 'TD1', 'TD2', 'TD3', 'MRVA' or 'MRVB' depending on the type of the MRZ.
+        It is either None (no parsing done at all) or 'TD1', 'TD2', 'TD3', 'MRVA', 'MRVB' or 'CNI_FR' (see below) depending on the type of the MRZ.
         The next one is 'valid'. If this is true, you may be pretty sure the parsing was successful and
         all the checksum digits passed the test as well. Sometimes the validity check may fail for some trivial reason
         (e.g. nonstandard document type character or one of the checksums wrong while others corect) -
@@ -54,6 +58,31 @@ class MRZ(object):
         The field aux is a dictionary of additional data that may be associated with MRZ by OCR code,
         e.g. aux['roi'], aux['box'] or aux['raw_text'] may be used to carry around the part of the image that was used
         to extract the information, aux['method'] to mark the method used, etc.
+
+    CNI_FR (pre-2021 French national identity card):
+        A non-ICAO MRZ of 2 lines of 36 characters, which would otherwise be read as an (invalid) TD2.
+        It is only produced by MRZ.from_ocr (hence by read_mrz), never by MRZ(lines) called directly:
+        from_ocr reads the raw OCR lines as CNI_FR when they look like one and when this beats the standard reading.
+        Fields: type and country (read from line 1: 'ID' and 'FRA' on a good read), surname, names (truncated by the format), number (12 characters),
+        issue_date (YYMM, the first 4 characters of number), administrative_code (6 characters, '<' possible),
+        date_of_birth, sex, nationality (always 'FRA'), expiration_date (always None: not in this MRZ),
+        check_number, check_date_of_birth, check_composite.
+        There are no optional1, optional2, personal_number, check_expiration_date or valid_expiration_date fields.
+        valid_check_digits has three elements: [valid_number, valid_date_of_birth, valid_composite].
+        Beware: index 2 is the composite check digit here, while it is the expiration date for the other types;
+        generic code should read the named attributes rather than the indices.
+        valid_line_lengths is [line 1 has 36 chars, line 2 has 36 chars], valid_misc is [type == 'ID', sex in M/F].
+        valid_format (CNI_FR only, not in to_dict) is True when both raw lines only contain A-Z, a-z, 0-9 and '<',
+        every corrected character has the class of its position (letter, digit, or department code: digit, A or B right
+        after a 2 of the same department, '<' in the administrative code only) and country is 'FRA'.
+        The raw alphabet is checked after the 'IDFRA' prefix normalisation. Check digits may not detect these errors
+        (an unknown character usually weighs like '<' in the composite), so when valid_format is False the score is capped at 99.
+        Lines are never repaired (no character removed or inserted): a line of the wrong length makes the MRZ invalid,
+        since line 1 is only protected by the composite check digit and a repaired line would pass it about 1 time in 10.
+        Only the constant 'IDFRA' prefix may be normalised.
+        Like any modulo 10 check digit, a single misread whose value differs by a multiple of 10 (e.g. '<' read as 'K')
+        still passes every check. This applies after correction: '<' read as 'C' in the administrative code becomes '0',
+        and '<' read as '4' in a name becomes 'A', both worth the same as '<'.
     """
 
     def __init__(self, mrz_lines):
@@ -68,11 +97,69 @@ class MRZ(object):
 
     @staticmethod
     def from_ocr(mrz_ocr_string):
-        """Given a single string which is output from an OCR routine, cleans it up using MRZ.ocr_cleanup and creates a MRZ object"""
+        """
+        Given a single string which is output from an OCR routine, cleans it up using MRZ.ocr_cleanup and creates a MRZ object.
+
+        If the standard reading is not valid and the raw (uncleaned) lines look like a CNI_FR, they are also read as CNI_FR,
+        and that reading is returned if at least one of its line 2 check digits (number, date of birth) is valid
+        and its valid_score is strictly higher than the standard one.
+        """
+        # The TD2 cleaner alters characters irreversibly (e.g. C, D, O, Q -> 0), so the CNI_FR path starts from the raw lines
+        raw_lines = MRZOCRCleaner.instance()._split_lines(mrz_ocr_string)  # pylint: disable=protected-access
         result = MRZ(MRZOCRCleaner.apply(mrz_ocr_string))
+        if not result.valid:
+            try:
+                cni = MRZ._read_cni_fr(raw_lines)
+                if cni is not None and (cni.valid_number or cni.valid_date_of_birth) and cni.valid_score > result.valid_score:
+                    result = cni
+            except Exception:
+                pass
         result.aux['text'] = mrz_ocr_string
         result.aux['raw_text'] = mrz_ocr_string
         return result
+
+    @staticmethod
+    def _detect_cni_fr(lines):
+        """
+        Tells whether raw OCR lines may be a CNI_FR MRZ. The test is deliberately loose: the check digits decide afterwards.
+        Returns None (not a candidate), 'prefix' (line 1 starts with IDFRA, one character off at most),
+        'shifted' (same, after one stray leading character) or 'line2' (only line 2 has the CNI_FR shape).
+        """
+        if len(lines) != 2 or not all(34 <= len(ln) <= 38 for ln in lines):
+            return None
+
+        def near_idfra(s):
+            return sum(x != y for x, y in zip(s[:5].upper(), 'IDFRA')) <= 1
+
+        if near_idfra(lines[0]):
+            return 'prefix'
+        if near_idfra(lines[0][1:]):
+            return 'shifted'
+        fixer = MRZOCRCleaner.instance().FIXERS['n']
+        b = ''.join(fixer.get(ch, ch) for ch in lines[1].upper())
+        if sum(ch in '0123456789' for ch in b[:13]) >= 11 and re.search(r'[0-9]{7}[MF][0-9]$', b):
+            return 'line2'
+        return None
+
+    @staticmethod
+    def _read_cni_fr(lines):
+        """Reads raw OCR lines as a CNI_FR MRZ. Returns a new MRZ object, or None if the lines are not a CNI_FR candidate."""
+        detected = MRZ._detect_cni_fr(lines)
+        if detected is None:
+            return None
+        a, b = lines
+        if detected == 'prefix':
+            # The only normalisation allowed: a constant of the format, with no change of length
+            a = 'IDFRA' + a[5:]
+        cleaner = MRZOCRCleaner.instance()
+        fixed_a = cleaner._fix_line(a, 'CNI_FR', 0)  # pylint: disable=protected-access
+        fixed_b = cleaner._fix_line(b, 'CNI_FR', 1)  # pylint: disable=protected-access
+        # A separate object, built without MRZ.__init__ so that no TD2 field is ever set on it
+        mrz = MRZ.__new__(MRZ)
+        mrz.aux = {}
+        mrz.mrz_type = 'CNI_FR'
+        mrz.valid = mrz._parse_cni_fr(fixed_a, fixed_b, a, b)
+        return mrz
 
     def _parse(self, mrz_lines):
         self.mrz_type = MRZ._guess_type(mrz_lines)
@@ -117,6 +204,27 @@ class MRZ(object):
         result['valid_score'] = self.valid_score
         if 'raw_text' in self.aux:
             result['raw_text'] = self.aux['raw_text']
+        if self.mrz_type == 'CNI_FR':
+            # Returns before the generic code, which reads valid_check_digits[2:4] as TD2 flags and personal_number
+            result['type'] = self.type
+            result['country'] = self.country
+            result['number'] = self.number
+            result['issue_date'] = self.issue_date
+            result['date_of_birth'] = self.date_of_birth
+            result['nationality'] = self.nationality
+            result['sex'] = self.sex
+            result['names'] = self.names
+            result['surname'] = self.surname
+            result['administrative_code'] = self.administrative_code
+            result['check_number'] = self.check_number
+            result['check_date_of_birth'] = self.check_date_of_birth
+            result['check_composite'] = self.check_composite
+            result['valid_number'] = self.valid_number
+            result['valid_date_of_birth'] = self.valid_date_of_birth
+            result['valid_composite'] = self.valid_composite
+            if 'method' in self.aux:
+                result['method'] = self.aux['method']
+            return result
         if self.mrz_type is not None:
             result['type'] = self.type
             result['country'] = self.country
@@ -315,6 +423,75 @@ class MRZ(object):
         self.valid_number, self.valid_date_of_birth, self.valid_expiration_date = self.valid_check_digits
         return self.valid_score == 100
 
+    def _parse_cni_fr(self, a, b, raw_a, raw_b):
+        # Lengths are measured on the raw lines, before padding: the padding only makes slicing safe, it never repairs a line
+        # (and upper() in the cleaner may change the length of a non-ASCII character, e.g. 'ß' -> 'SS')
+        len_a, len_b = len(raw_a), len(raw_b)
+        # Check digits may not see characters outside the MRZ alphabet (at a weight 1 position of the composite they count
+        # as '<'), nor a character of the wrong class whose value differs by a multiple of 10 (e.g. 'R' for '7'):
+        # such a reading can never be valid
+        self.valid_format = (all(re.fullmatch(r'[A-Za-z0-9<]*', ln) for ln in (raw_a, raw_b))
+                             and MRZ._matches_cni_fr_classes(a, 0) and MRZ._matches_cni_fr_classes(b, 1)
+                             and a[2:5] == 'FRA')
+        if len(a) < 36:
+            a = a + '<'*(36 - len(a))
+        if len(b) < 36:
+            b = b + '<'*(36 - len(b))
+        self.type = a[0:2]
+        self.country = a[2:5]
+        self.surname = ' '.join(a[5:30].replace('<', ' ').split())
+        self.administrative_code = a[30:36]
+        self.number = b[0:12]
+        self.issue_date = b[0:4]
+        self.check_number = b[12]
+        # Names are separated by '<<': collapsing every run of '<' into a single space joins them with one space
+        self.names = ' '.join(b[13:27].replace('<', ' ').split())
+        self.date_of_birth = b[27:33]
+        self.check_date_of_birth = b[33]
+        self.sex = b[34]
+        self.check_composite = b[35]
+        self.nationality = 'FRA'
+        self.expiration_date = None
+        self.valid_number = MRZCheckDigit.compute(self.number) == self.check_number
+        self.valid_date_of_birth = MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth)
+        # The composite covers the whole line 1, so it can only be valid if line 1 has exactly 36 characters
+        self.valid_composite = len_a == 36 and MRZCheckDigit.compute(a[0:36] + b[0:35]) == self.check_composite
+        self.valid_check_digits = [self.valid_number,
+                                   self.valid_date_of_birth,
+                                   self.valid_composite]
+        self.valid_line_lengths = [len_a == 36, len_b == 36]
+        self.valid_misc = [self.type == 'ID', self.sex in ('M', 'F')]
+        self.valid_score = 10*sum(self.valid_check_digits) + sum(self.valid_line_lengths) + sum(self.valid_misc) + 1
+        self.valid_score = 100*self.valid_score//(30+2+2+1)
+        if self.valid_score == 100 and not self.valid_format:
+            # Kept below 100 so that valid == (valid_score == 100) still holds
+            self.valid_score = 99
+        return self.valid_score == 100
+
+    @staticmethod
+    def _matches_cni_fr_classes(line, line_idx):
+        """
+        Tells whether a corrected CNI_FR line has the right length and a character of the right class at every position.
+        In the 3-character departments (line 1 positions 31-33, line 2 positions 5-7), A and B are only allowed
+        right after a 2 of the same department (Corsica: 2A, 2B); '<' is only allowed in the administrative code (line 1),
+        never in the card number (line 2).
+        """
+        fmt = MRZOCRCleaner.instance().FORMAT['CNI_FR'][line_idx]
+        allowed = {'a': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ',
+                   'A': 'ABCDEFGHIJKLMNOPQRSTUVWXYZ<',
+                   'n': '0123456789',
+                   'c': '0123456789<' if line_idx == 0 else '0123456789'}
+        # 0-based positions of the 2nd and 3rd characters of the department, the only ones that may follow its 2
+        corsica = (31, 32) if line_idx == 0 else (5, 6)
+        if len(line) != len(fmt):
+            return False
+        for j, (ch, cls) in enumerate(zip(line, fmt)):
+            if j in corsica and ch in 'AB' and line[j - 1] == '2':
+                continue
+            if ch not in allowed[cls]:
+                return False
+        return True
+
 
 class MRZOCRCleaner(object):
     """
@@ -332,6 +509,7 @@ class MRZOCRCleaner(object):
         #   A  - alpha+<
         #   n  - numeric
         #   N  - numeric+<
+        #   c  - department code: numeric+<, but B is kept (Corsican 2B)
         #   *  - alpha+num+<
 
         TD1 = ['a*' + 'A'*3 + '*'*9 + 'N' + '*'*15,
@@ -343,12 +521,16 @@ class MRZOCRCleaner(object):
                '*'*9 + 'n' + 'A'*3 + 'n'*7 + 'A' + 'n'*7 + '*'*14 + 'n'*2]
         MRV = ['a' + 'A'*43,
                '*'*9 + 'n' + 'A'*3 + 'n'*7 + 'A' + 'n'*7 + '*'*16]
-        self.FORMAT = {'TD1': TD1, 'TD2': TD2, 'TD3': TD3, 'MRVA': MRV, 'MRVB': MRV}
+        # Never guessed by MRZ._guess_type: only applied by MRZ.from_ocr to CNI_FR candidates
+        CNI_FR = ['a'*5 + 'A'*25 + 'c'*6,
+                  'n'*4 + 'c'*3 + 'n'*6 + 'A'*14 + 'n'*7 + 'a' + 'n']
+        self.FORMAT = {'TD1': TD1, 'TD2': TD2, 'TD3': TD3, 'MRVA': MRV, 'MRVB': MRV, 'CNI_FR': CNI_FR}
 
         # Fixers
         a = {'0': 'O', '1': 'I', '2': 'Z', '4': 'A', '5': 'S', '6': 'G', '8': 'B'}
         n = {'B': '8', 'C': '0', 'D': '0', 'G': '6', 'I': '1', 'O': '0', 'Q': '0', 'S': '5', 'Z': '2'}
-        self.FIXERS = {'a': a, 'A': a, 'n': n, 'N': n, '*': {}}
+        c = {k: v for k, v in n.items() if k != 'B'}
+        self.FIXERS = {'a': a, 'A': a, 'n': n, 'N': n, 'c': c, '*': {}}
 
     def _split_lines(self, mrz_ocr_string):
         return [ln for ln in mrz_ocr_string.replace(' ', '').split('\n') if (len(ln) >= 20 or '<<' in ln)]
@@ -386,10 +568,15 @@ class MRZOCRCleaner(object):
             return fixer.get(char, char)
 
     @staticmethod
-    def apply(txt):
+    def instance():
+        """Returns the singleton instance of the cleaner."""
         if getattr(MRZOCRCleaner, '__instance__', None) is None:
             MRZOCRCleaner.__instance__ = MRZOCRCleaner()
-        return MRZOCRCleaner.__instance__(txt)
+        return MRZOCRCleaner.__instance__
+
+    @staticmethod
+    def apply(txt):
+        return MRZOCRCleaner.instance()(txt)
 
 
 class MRZCheckDigit(object):

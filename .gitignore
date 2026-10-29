@@ -12,3 +12,6 @@ wheels/
 # Sample images used only by the parity harness
 testdata/
 uv.lock
+
+# Internal working notes
+mrzmini 0.2.0*.md

@@ -1,6 +1,6 @@
 [project]
 name = "mrzmini"
-version = "0.1.0"
+version = "0.2.0"
 description = "Minimal-footprint reimplementation of PassportEye's MRZ detection/reading (numpy + pillow only)"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,6 +39,15 @@ mrzmini = "mrzmini.__main__:main"
 parity = [
     "passporteye",
 ]
+# Test suite: `uv run --group dev pytest`.
+dev = [
+    "pytest>=8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "mrzmini/text.py"]
+# Runs the doctests of text.py with the suite
+addopts = "--doctest-modules"
 
 [build-system]
 requires = ["hatchling"]
