@@ -18,7 +18,7 @@ import numpy as np
 from PIL import Image
 
 import mrzmini.ocr
-from mrzmini.image import MRZPipeline, read_mrz
+from mrzmini.image import MRZPipeline, read_mrz, read_mrz_detailed
 
 # ICAO Doc 9303 TD3 specimen (Anna Maria Eriksson, Utopia)
 TD3_L1 = 'P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<'
@@ -45,6 +45,8 @@ UPSIDE_DOWN = TD3_L2[::-1].replace('<', '>') + '\n' + TD3_L1[::-1].replace('<', 
 # No '<' at all: early exit of BoxToMRZ, with a positive score (5).
 NO_FILLER = 'A' * 44 + '\n' + '1' * 44
 CNI_FR = CNI_L1 + '\n' + CNI_L2
+# Administrative code changed: number and date of birth checks of line 2 valid, composite not (score 71)
+CNI_FR_LINE2 = CNI_L1[:-1] + '4' + '\n' + CNI_L2
 
 
 # ---------------------------------------------------------------------------
@@ -190,18 +192,38 @@ def thumbnail_boxes(data):
 def run_read_mrz(data, texts, extra, **kwargs):
     """Records read_mrz(data); kwargs (such as lang) are passed on. Not for lang='auto': the fake tesseract
     does not answer --list-langs."""
+    def read():
+        return read_mrz(data, **kwargs) if extra is None else read_mrz(data, False, extra, **kwargs)
+    return record_read(read, data, texts)
+
+
+def run_read_mrz_detailed(data, texts, extra, **kwargs):
+    """Records read_mrz_detailed(data), with extra (if not None) and kwargs as keywords. Returns the record, made
+    from result.mrz as for run_read_mrz, and the MRZResult."""
+    if extra is not None:
+        kwargs['extra_cmdline_params'] = extra
+    results = []
+
+    def read():
+        results.append(read_mrz_detailed(data, **kwargs))
+        return results[0].mrz
+    return record_read(read, data, texts), results[0]
+
+
+def record_read(read, data, texts):
+    """Records the OCR calls of read(), which reads data through one MRZPipeline and returns an MRZ or None."""
     fake = ScriptedOCR(texts)
     pipelines = []
     init = MRZPipeline.__init__
 
-    # Keeps a handle on the pipeline read_mrz builds, to inspect its final state. Replacing the class itself
+    # Keeps a handle on the pipeline read() builds, to inspect its final state. Replacing the class itself
     # would break MRZPipeline.__init__, which calls super() through the module global.
     def kept_init(self, *args, **kwargs):
         init(self, *args, **kwargs)
         pipelines.append(self)
 
     with mock.patch('mrzmini.image.ocr', fake), mock.patch.object(MRZPipeline, '__init__', kept_init):
-        mrz = read_mrz(data, **kwargs) if extra is None else read_mrz(data, False, extra, **kwargs)
+        mrz = read()
 
     assert len(pipelines) == 1
     p = pipelines[0]
@@ -209,7 +231,8 @@ def run_read_mrz(data, texts, extra, **kwargs):
         'boxes_250': thumbnail_boxes(data),
         # After TryOtherMaxWidth, the scaler is the 1000 px one and the boxes are those found with it
         'final_max_width': p.components['scaler'].max_width,
-        'final_boxes': len(p.data['boxes']),
+        # None if the image was not even loaded (deadline already passed)
+        'final_boxes': len(p.data['boxes']) if 'boxes' in p.data else None,
         'ocr_calls': fake.calls,
         'method': None if mrz is None else mrz.aux.get('method'),
         'result': None if mrz is None else mrz.to_dict(),

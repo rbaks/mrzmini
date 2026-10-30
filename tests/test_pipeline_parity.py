@@ -1,8 +1,8 @@
 """Regenerate the reference with `MRZMINI_UPDATE_GOLDEN=1 uv run --group dev pytest tests/test_pipeline_parity.py` (whole file), only for an intended behaviour change.
 
-Pipeline parity with mrzmini 0.2.0: read_mrz runs on synthetic images with mrzmini.image.ocr faked, and the
-sequence of OCR calls (arguments, tesseract command line, fingerprint of the image tesseract reads) and the
-result are compared to pipeline_parity_golden.json.
+Pipeline parity with mrzmini 0.2.0: read_mrz, and read_mrz_detailed without options, run on synthetic images with
+mrzmini.image.ocr faked, and the sequence of OCR calls (arguments, tesseract command line, fingerprint of the image
+tesseract reads) and the result are compared to pipeline_parity_golden.json.
 With default parameters, later versions must make exactly the same calls and return the same result.
 
 The images, texts and recorder are in pipeline_recording.py (no Tesseract needed).
@@ -19,7 +19,7 @@ import pytest
 from PIL import Image
 
 from pipeline_recording import (CNI_FR, NO_FILLER, SCORE_25, SCORE_44_A, SCORE_44_B, SCORE_62_A, SCORE_62_B,
-                                SCORE_81, UPSIDE_DOWN, VALID, image_png, run_read_mrz)
+                                SCORE_81, UPSIDE_DOWN, VALID, image_png, run_read_mrz, run_read_mrz_detailed)
 
 GOLDEN_PATH = Path(__file__).with_name('pipeline_parity_golden.json')
 UPDATE_GOLDEN = os.environ.get('MRZMINI_UPDATE_GOLDEN') == '1'
@@ -141,6 +141,28 @@ def test_pipeline_parity(request, golden, image, texts, extra, zone, n_calls, me
     expected = golden[name]
     assert record['ocr_calls'] == expected['ocr_calls']
     assert record == expected
+
+
+@pytest.mark.parametrize('image, texts, extra, zone, n_calls, method', SCENARIOS)
+def test_detailed_parity(request, golden, image, texts, extra, zone, n_calls, method):
+    if UPDATE_GOLDEN:
+        pytest.skip('reference being regenerated')
+    record, result = run_read_mrz_detailed(image_png(image), texts, extra)
+
+    # Same OCR calls, pipeline state and result as read_mrz in 0.2.0
+    expected = golden[request.node.callspec.id]
+    assert record['ocr_calls'] == expected['ocr_calls']
+    assert record == expected
+    assert record['result'] == run_read_mrz(image_png(image), texts, extra)['result']
+
+    assert result.ocr_calls == n_calls
+    assert result.budget_exhausted is False
+    assert result.elapsed_s >= 0
+    if method is None:
+        assert result.mrz is None and result.view is None and result.accepted is False
+    else:
+        assert result.view == ((0, 1000) if method.endswith('|max_width(1000)') else (0, 250))
+        assert result.accepted is result.mrz.valid
 
 
 def test_reference_has_every_scenario(golden):
