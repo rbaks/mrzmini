@@ -11,7 +11,7 @@ The public interface mirrors PassportEye:
 
 Original algorithm and code: Konstantin Tretyakov, PassportEye (MIT License).
 '''
-from .text import MRZ
+from .text import MRZ, looks_like_cni_fr
 from .image import read_mrz, read_mrz_detailed, MRZResult, MRZPipeline, ROTATED_VIEWS
 
-__all__ = ['read_mrz', 'read_mrz_detailed', 'MRZResult', 'ROTATED_VIEWS', 'MRZ', 'MRZPipeline']
+__all__ = ['read_mrz', 'read_mrz_detailed', 'MRZResult', 'ROTATED_VIEWS', 'MRZ', 'MRZPipeline', 'looks_like_cni_fr']
