@@ -135,7 +135,8 @@ def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
         environment variable is ignored, with a warning, when
         ``extra_cmdline_params`` has ``-l``.
         If tesseract fails and a model is missing from ``--list-langs``, raises
-        ValueError listing the installed models. With ``"a+b"``, tesseract
+        ValueError listing the installed models (not checked when
+        ``extra_cmdline_params`` has ``--tessdata-dir``). With ``"a+b"``, tesseract
         fails only if no model loads: it silently reads with those it found.
         ``"auto"`` lists the models of ``TESSDATA_PREFIX``, not of a
         ``--tessdata-dir`` in ``extra_cmdline_params``, and does not fall back
@@ -180,7 +181,8 @@ def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
         try:
             subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
         except subprocess.CalledProcessError as err:
-            if lang is not None:
+            # --list-langs reads TESSDATA_PREFIX: it cannot tell for another --tessdata-dir
+            if lang is not None and '--tessdata-dir' not in (extra_cmdline_params or '').split():
                 _raise_if_missing(lang, err)
             raise
 

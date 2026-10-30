@@ -72,7 +72,8 @@ passed in `extra_cmdline_params`. If a listed `mrz` cannot be loaded (for
 example, built for another tesseract version), the reads fail.
 
 If tesseract fails because the model is missing, `read_mrz` raises
-`ValueError` with the installed models. With `'mrz+eng'`, tesseract fails only
+`ValueError` with the installed models, unless `extra_cmdline_params` contains
+`--tessdata-dir`. With `'mrz+eng'`, tesseract fails only
 if no model loads: if `mrz` is missing, it reads with `eng` only, silently.
 
 Without `lang`, mrzmini reads the `MRZMINI_TESSERACT_LANG` environment

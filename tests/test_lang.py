@@ -274,6 +274,15 @@ def test_other_error_reraised(tesseract):
     assert exc.value.cmd == tesseract.runs[0][0]
 
 
+def test_error_reraised_with_tessdata_dir(tesseract):
+    # --list-langs would list TESSDATA_PREFIX, not this directory
+    tesseract.run_error = True
+
+    with pytest.raises(subprocess.CalledProcessError):
+        ocr(ROI, extra_cmdline_params='--tessdata-dir /other/tessdata', lang='mrz')
+    assert tesseract.list_calls == 0
+
+
 def test_error_reraised_when_list_langs_fails(tesseract):
     tesseract.run_error = True
     tesseract.list_error = FileNotFoundError('tesseract')
