@@ -340,6 +340,13 @@ class MRZ(object):
         self.valid_date_of_birth = MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth)
         self.valid_expiration_date = MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and MRZ._check_date(self.expiration_date)
         self.valid_composite = MRZCheckDigit.compute(a[5:30] + b[0:7] + b[8:15] + b[18:29]) == self.check_composite
+        if self.check_number == '<':
+            # ICAO 9303 number longer than 9 characters: the rest of it and its check digit open optional1
+            ext = a[15:30].split('<', 1)[0]
+            if len(ext) >= 2 and MRZCheckDigit.compute(a[5:15] + ext[:-1]) == ext[-1]:
+                self.number = a[5:14] + ext[:-1]
+                self.check_number = ext[-1]
+                self.valid_number = True
         self.valid_check_digits = [self.valid_number,
                                    self.valid_date_of_birth,
                                    self.valid_expiration_date,
@@ -378,6 +385,13 @@ class MRZ(object):
         self.valid_date_of_birth = MRZCheckDigit.compute(self.date_of_birth) == self.check_date_of_birth and MRZ._check_date(self.date_of_birth)
         self.valid_expiration_date = MRZCheckDigit.compute(self.expiration_date) == self.check_expiration_date and MRZ._check_date(self.expiration_date)
         self.valid_composite = MRZCheckDigit.compute(b[0:10] + b[13:20] + b[21:35]) == self.check_composite
+        if self.check_number == '<':
+            # ICAO 9303 number longer than 9 characters: the rest of it and its check digit open optional1
+            ext = b[28:35].split('<', 1)[0]
+            if len(ext) >= 2 and MRZCheckDigit.compute(b[0:10] + ext[:-1]) == ext[-1]:
+                self.number = b[0:9] + ext[:-1]
+                self.check_number = ext[-1]
+                self.valid_number = True
         self.valid_check_digits = [self.valid_number,
                                    self.valid_date_of_birth,
                                    self.valid_expiration_date,
