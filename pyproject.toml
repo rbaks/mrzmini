@@ -1,6 +1,6 @@
 [project]
 name = "mrzmini"
-version = "0.2.0"
+version = "0.3.0"
 description = "Minimal-footprint reimplementation of PassportEye's MRZ detection/reading (numpy + pillow only)"
 readme = "README.md"
 requires-python = ">=3.12"
