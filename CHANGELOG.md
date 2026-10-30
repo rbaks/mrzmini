@@ -30,7 +30,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   installed models; with `'a+b'`, tesseract fails only if no model loads.
 - `read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, accept=None,
   max_ocr_calls=None, deadline=None)` returns an `MRZResult`, a frozen
-  dataclass, also when no MRZ is read: `mrz` (what `read_mrz` returns),
+  dataclass, also when no MRZ is read (a PDF without an embedded JPEG image
+  included, where `read_mrz` fails): `mrz` (what `read_mrz` returns),
   `accepted`, `view` (`(0, 250)`, `(0, 1000)` after `TryOtherMaxWidth`, or
   `None`), `ocr_calls`, `elapsed_s` and `budget_exhausted`. `accept`, a
   predicate `MRZ -> bool`, replaces `mrz.valid` as the condition that stops
