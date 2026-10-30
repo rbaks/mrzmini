@@ -98,9 +98,8 @@ def rotated(arr, angle):
     return np.asarray(Image.fromarray(arr).rotate(angle, expand=True))
 
 
-# Pages turned counterclockwise. On the CNI_FR card, the box of the upright MRZ has angle pi/2, so that its ROI is
-# upright; on the TD3 card of 640 px, its angle is -1.559, so that its ROI is upside down (BoxToMRZ relies on tesseract
-# reading '>>' to flip it, which OrientedOCR does not do) and the view at 180 degrees gives the upright ROI.
+# Pages turned counterclockwise. On both cards, the box of the upright MRZ is near pi/2 (on the TD3 card of 640 px,
+# from_points gives -1.559, which _fixup_boxes takes the other way round), so that its ROI is upright.
 PAGES = {
     'cni_90': (lambda: rotated(draw_card(CNI, 640), 90), CNI),
     'cni_270': (lambda: rotated(draw_card(CNI, 640), 270), CNI),
@@ -201,6 +200,35 @@ def test_upright_criterion():
 
 
 # ---------------------------------------------------------------------------
+# Orientation of the extracted zone
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize('angle, box_angle', [
+    # from_points gives -89.31 and -86.87 degrees: extracted from there, the zone was upside down
+    (0, 90.69),
+    # Turned counterclockwise: the text rises to the right
+    (5, 93.13),
+])
+def test_tilted_card_extracted_upright(angle, box_angle):
+    # On the colour of the card: black corners would count as ink in is_upright
+    image = np.asarray(Image.fromarray(draw_card(TD3, 640)).rotate(angle, expand=True, fillcolor=(226, 229, 233)))
+    pipeline = MRZPipeline(None)
+    pipeline['img'] = mrzmini.image.Loader(image)()
+    boxes, rois = pipeline['boxes'], pipeline['rois']
+    assert len(boxes) == 1 and np.degrees(boxes[0].angle) == pytest.approx(box_angle, abs=0.01)
+    assert is_upright(rois[0], mrz_bitmap(TD3))
+
+    result, fake = read(image, TD3)
+    assert result.accepted is True and result.view == (0, 250) and result.ocr_calls == 1
+
+
+@pytest.mark.parametrize('degrees, fixed', [(-89.4, 90.6), (-5, -5), (89.4, 89.4), (89.5, 90), (-89.5, 90)])
+def test_fixup_boxes(degrees, fixed):
+    box = RotatedBox([80, 125], 180, 29, np.radians(degrees))
+    assert mrzmini.image.MRZBoxLocator()._fixup_boxes([box]) == [box]
+    assert np.degrees(box.angle) == pytest.approx(fixed)
+
+
+# ---------------------------------------------------------------------------
 # Pass 1 accepted: no view
 # ---------------------------------------------------------------------------
 def golden_scenarios():
@@ -227,9 +255,8 @@ def test_pass1_accepted_skips_views(request, image, texts, extra, zone, n_calls,
     ('cni_90', (270, 250), 1),
     # (270, 250) shows the page upside down: its box is read first (same score, first view), in vain
     ('cni_270', (90, 250), 2),
-    # The ROI of the upright TD3 card is upside down (see PAGES): read in the view at 180 degrees
-    ('td3_90', (90, 250), 2),
-    ('td3_270', (270, 250), 1),
+    ('td3_90', (270, 250), 1),
+    ('td3_270', (90, 250), 2),
 ])
 def test_rotated_page(page, view, n_calls):
     make, lines = PAGES[page]

@@ -275,7 +275,7 @@ def test_candidates_of_pass2_not_accepted():
                                    keep_candidates=True)
     assert result.mrz is None and result.ocr_calls > 0
     best = result.candidates[0]
-    assert best.valid and best.aux['view'] == (270, 250)
+    assert best.valid and best.aux['view'] == (90, 250)
     assert len({c.aux['view'] for c in result.candidates}) > 1
 
 
