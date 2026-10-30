@@ -237,6 +237,10 @@ class MRZBoxLocator(object):
         The box_list is fixed in-place (but also returned).
         """
         for box in box_list:
+            # from_points gives an angle in (-pi/2, pi/2]: a box near -pi/2 would be
+            # extracted turned by ~180 degrees, so take the same box the other way round.
+            if box.angle < -np.pi / 4:
+                box.angle += np.pi
             if abs(abs(box.angle) - np.pi / 2) <= 0.01:
                 box.angle = np.pi / 2
             if abs(box.angle) <= 0.01:
