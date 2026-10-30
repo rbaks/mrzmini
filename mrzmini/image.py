@@ -261,16 +261,19 @@ class FindFirstValidMRZ(object):
     __provides__ = ['box_idx', 'roi', 'text', 'mrz']
     __depends__ = ['boxes', 'img', 'img_small', 'scale_factor', '__data__']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None):
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None,
+                 rank_key=None, keep_candidates=False):
         """
         :param lang: the tesseract model, see BoxToMRZ
         :param accept: stops at the first box whose MRZ satisfies it, see BoxToMRZ
         :param budget: an OCRBudget, shared with BoxToMRZ and checked before each box. Once spent, the best
             MRZ read so far is returned.
+        :param rank_key, keep_candidates: see BoxToMRZ. rank_key also picks the best box.
         """
         self.budget = budget if budget is not None else OCRBudget()
         self.box_to_mrz = BoxToMRZ(use_original_image, extra_cmdline_params=extra_cmdline_params, lang=lang,
-                                   accept=accept, budget=self.budget)
+                                   accept=accept, budget=self.budget, rank_key=rank_key,
+                                   keep_candidates=keep_candidates)
 
     def __call__(self, boxes, img, img_small, scale_factor, data):
         mrzs = []
@@ -287,7 +290,7 @@ class FindFirstValidMRZ(object):
         if not mrzs:
             return None, None, None, None
         else:
-            mrzs.sort(key=lambda x: x[3].valid_score)
+            mrzs.sort(key=lambda x: self.box_to_mrz.rank(x[3]))
             return mrzs[-1]
 
 
@@ -297,7 +300,8 @@ class BoxToMRZ(object):
     __provides__ = ['roi', 'text', 'mrz']
     __depends__ = ['box', 'img', 'img_small', 'scale_factor']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None):
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None,
+                 rank_key=None, keep_candidates=False):
         """
         :param use_original_image: when True, the ROI is extracted from img, otherwise from img_small
         :param lang: the tesseract model passed to ocr() (a name such as 'mrz', or 'auto'); None leaves the
@@ -305,22 +309,67 @@ class BoxToMRZ(object):
             Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
         :param accept: a predicate MRZ -> bool that stops the search: no further variant is tried once the
             current MRZ satisfies it. None means mrz.valid, as in 0.2.0, which tries the black-tophat rescale
-            even after a valid black-tophat read. The best variant is still chosen by valid_score.
+            even after a valid black-tophat read (without rank_key only). The best variant is still chosen by rank.
         :param budget: an OCRBudget, checked before each variant and each OCR call. Once spent, the best
             variant read so far is returned. With a deadline, ocr() gets the time left as timeout.
+        :param rank_key: a function MRZ -> comparable key that picks the best variant (strictly greater key; on a
+            tie, the first one). None means valid_score, as in 0.2.0. Given, the CNI_FR reading MRZ.from_ocr
+            computed but did not return competes as a read of its own.
+        :param keep_candidates: keep every read in self.candidates, in reading order, the CNI_FR reading
+            MRZ.from_ocr did not return included: one per OCR call (two with that CNI_FR reading), none for a call
+            the budget skipped. Only observes: the reads chosen are the same. The list grows over all the calls of
+            this object: use one per read.
         """
         self.lang = _check_lang(lang, extra_cmdline_params)
         self.use_original_image = use_original_image
         self.extra_cmdline_params = extra_cmdline_params
         self.accept = accept
         self.budget = budget if budget is not None else OCRBudget()
+        self.rank_key = rank_key
+        self.candidates = [] if keep_candidates else None
 
     def accepts(self, mrz):
         return bool(self.accept(mrz)) if self.accept is not None else mrz.valid
 
+    def rank(self, mrz):
+        return self.rank_key(mrz) if self.rank_key is not None else mrz.valid_score
+
+    def _better(self, cur_text, cur_mrz, new_text, method):
+        """Parses new_text, read by the variant `method`, and returns the best of (cur_text, cur_mrz) and its reads:
+        a read replaces the current one only if its rank is strictly higher. cur_mrz None: the first read wins.
+
+        new_text None: the budget skipped the OCR call, nothing was read. The current read is kept; without one, ''
+        is parsed as in 0.2.0, but not kept as a candidate."""
+        read = new_text is not None
+        if not read:
+            if cur_mrz is not None:
+                # '' could only replace it with a rank_key, and was never read
+                return cur_text, cur_mrz
+            new_text = ''
+        if self.rank_key is None and self.candidates is None:
+            # As in 0.2.0: from_ocr alone
+            reads = [MRZ.from_ocr(new_text)]
+        else:
+            reads = MRZ._from_ocr_reads(new_text)  # pylint: disable=protected-access
+        for mrz in reads:
+            mrz.aux['method'] = method
+        if self.candidates is not None and read:
+            self.candidates.extend(reads)
+        if self.rank_key is None:
+            # The CNI_FR reading from_ocr did not return is then only a candidate
+            reads = reads[:1]
+        for i, mrz in enumerate(reads):
+            if cur_mrz is None or self.rank(mrz) > self.rank(cur_mrz):
+                cur_text, cur_mrz = new_text, mrz
+                if i + 1 < len(reads) and self.accepts(cur_mrz):
+                    # The best read so far is accepted: the CNI_FR reading after it may not replace it
+                    break
+        return cur_text, cur_mrz
+
     def _ocr(self, img):
+        """The OCR text of img, or None if the budget is spent (no call made)."""
         if self.budget.spent():
-            return ''
+            return None
         self.budget.calls += 1
         # lang and timeout are passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
         kwargs = {}
@@ -341,19 +390,15 @@ class BoxToMRZ(object):
         roi = box.extract_from_image(img, scale)
         text = self._ocr(roi)
 
-        if ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
+        if text is not None and ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
             # Most probably we need to reverse the ROI
             roi = roi[::-1, ::-1]
             text = self._ocr(roi)
 
+        text, mrz = self._better(None, None, text, 'direct')
         if '<' not in text:
             # Assume this is unrecoverable and stop here (TODO: this may be premature, although it saves time on useless stuff)
-            mrz = MRZ.from_ocr(text)
-            mrz.aux['method'] = 'direct'
             return roi, text, mrz
-
-        mrz = MRZ.from_ocr(text)
-        mrz.aux['method'] = 'direct'
 
         # Now try improving the result via hacks, while the budget lasts
         if not self.accepts(mrz):
@@ -368,35 +413,26 @@ class BoxToMRZ(object):
 
         return roi, text, mrz
 
-    def _try_larger_image(self, roi, cur_text, cur_mrz, filter_order=3):
+    def _try_larger_image(self, roi, cur_text, cur_mrz, filter_order=3, method=None):
         """Attempts to improve the OCR result by scaling the image. If the new mrz is better, returns it, otherwise returns
-        the old mrz."""
+        the old mrz. method: of the new read, 'rescaled(<filter_order>)' by default."""
         if roi.shape[1] <= 700 and not self.budget.spent():
             scale_by = int(1050.0 / roi.shape[1] + 0.5)
             roi_lg = ip.rescale(roi, scale_by, order=filter_order)
             new_text = self._ocr(roi_lg)
-            new_mrz = MRZ.from_ocr(new_text)
-            new_mrz.aux['method'] = 'rescaled(%d)' % filter_order
-            if new_mrz.valid_score > cur_mrz.valid_score:
-                cur_mrz = new_mrz
-                cur_text = new_text
+            cur_text, cur_mrz = self._better(cur_text, cur_mrz, new_text, method or 'rescaled(%d)' % filter_order)
         return cur_text, cur_mrz
 
     def _try_black_tophat(self, roi, cur_text, cur_mrz):
         roi_b = ip.black_tophat(roi, ip.disk(5))
         # There are some examples where this line basically hangs for an undetermined amount of time.
         new_text = self._ocr(roi_b)
-        new_mrz = MRZ.from_ocr(new_text)
-        if new_mrz.valid_score > cur_mrz.valid_score:
-            new_mrz.aux['method'] = 'black_tophat'
-            cur_text, cur_mrz = new_text, new_mrz
+        cur_text, cur_mrz = self._better(cur_text, cur_mrz, new_text, 'black_tophat')
 
-        # 0.2.0 tries the rescale even after a valid black-tophat read: kept without accept, for parity
-        if self.accept is None or not self.accepts(cur_mrz):
-            new_text, new_mrz = self._try_larger_image(roi_b, cur_text, cur_mrz)
-            if new_mrz.valid_score > cur_mrz.valid_score:
-                new_mrz.aux['method'] = 'black_tophat(rescaled(3))'
-                cur_text, cur_mrz = new_text, new_mrz
+        # 0.2.0 tries the rescale even after a valid black-tophat read: kept without accept and rank_key, for parity.
+        # With rank_key, its read could replace the valid one.
+        if (self.accept is None and self.rank_key is None) or not self.accepts(cur_mrz):
+            cur_text, cur_mrz = self._try_larger_image(roi_b, cur_text, cur_mrz, method='black_tophat(rescaled(3))')
 
         return cur_text, cur_mrz
 
@@ -432,13 +468,16 @@ class TryOtherMaxWidth(object):
 class MRZPipeline(Pipeline):
     """This is the "currently best-performing" pipeline for parsing MRZ from a given image file."""
 
-    def __init__(self, file, extra_cmdline_params='', *, lang=None, accept=None, max_ocr_calls=None, deadline=None):
+    def __init__(self, file, extra_cmdline_params='', *, lang=None, accept=None, max_ocr_calls=None, deadline=None,
+                 rank_key=None, keep_candidates=False):
         """
         :param file: see read_mrz
         :param lang: the tesseract model, see read_mrz. If given, ValueError here if extra_cmdline_params
             also has -l.
         :param accept, max_ocr_calls, deadline: see read_mrz_detailed. The bounds apply to the whole pipeline,
             TryOtherMaxWidth included; self.budget (an OCRBudget) counts the OCR calls.
+        :param rank_key, keep_candidates: see read_mrz_detailed. The reads are kept, in reading order and without
+            aux['view'], in self.components['mrz'].box_to_mrz.candidates.
         """
         super(MRZPipeline, self).__init__()
         self.version = '1.0'  # In principle we might have different pipelines in use, so possible backward compatibility is an issue
@@ -449,7 +488,8 @@ class MRZPipeline(Pipeline):
         self.add_component('boone', BooneTransform())
         self.add_component('box_locator', MRZBoxLocator())
         self.add_component('mrz', FindFirstValidMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang,
-                                                    accept=accept, budget=self.budget))
+                                                    accept=accept, budget=self.budget, rank_key=rank_key,
+                                                    keep_candidates=keep_candidates))
         self.add_component('other_max_width', TryOtherMaxWidth(budget=self.budget))
 
         # Step used by extract_mrz_rois (not even invoked by the standard result method)
@@ -505,10 +545,14 @@ class MRZResult(object):
     elapsed_s: float
     #: True if max_ocr_calls or deadline stopped the read before its end, or the deadline passed during an OCR call
     budget_exhausted: bool
+    #: With keep_candidates, every read made, from the best to the worst by rank_key (valid_score without it), in
+    #: reading order on a tie; mrz is one of them, unless accept accepted the empty read of a zone whose first OCR
+    #: call the deadline skipped. () otherwise
+    candidates: tuple[MRZ, ...] = ()
 
 
 def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, views=(), accept=None,
-                      max_ocr_calls=None, deadline=None):
+                      max_ocr_calls=None, deadline=None, rank_key=None, keep_candidates=False):
     """Like read_mrz, but returns an MRZResult, with the OCR calls counted and optionally bounded, and an optional
     second pass on rotated or wider views.
 
@@ -527,15 +571,34 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         replaces the MRZ of pass 1.
     :param accept: a predicate MRZ -> bool, replacing mrz.valid as the condition that stops the search: no further
         variant of a box and no further box once the best read so far satisfies it. Otherwise the pipeline is
-        unchanged (best variant by valid_score, so an accepted read that does not score strictly higher is not
-        kept; best box with a positive valid_score; TryOtherMaxWidth when there is none). If the MRZ of pass 1
-        satisfies it, pass 2 does not run.
+        unchanged (best variant by rank, so an accepted read that does not rank strictly higher is not kept; best
+        box by rank among those with a positive valid_score; TryOtherMaxWidth when there is none). If the MRZ of
+        pass 1 satisfies it, pass 2 does not run.
     :param max_ocr_calls: maximum number of OCR calls for the whole read, both passes; ValueError if negative. 0
         runs no OCR.
     :param deadline: an instant on the time.monotonic() clock. No step starts after it, and each tesseract run gets
         the time left as timeout (killed then, read as empty). Steps without OCR (loading, scaling, box detection,
         ROI extraction, black-tophat) are not interrupted, but no view of pass 2 starts after it. If the deadline
         has already passed, the file is not even loaded.
+    :param rank_key: a function MRZ -> comparable key, replacing valid_score wherever reads are compared: between
+        the variants of a box (a strictly greater key wins; on a tie, the first read), and between the boxes of
+        pass 1 (those with a positive valid_score, the last one on a tie). It is called on every read, including
+        empty ones (mrz_type None). None means valid_score, as in 0.2.0. Given, the CNI_FR reading MRZ.from_ocr
+        computed but did not return (a standard reading scoring higher, or no valid check digit on line 2) competes
+        as a read of its own, so rank_key=lambda m: m.valid_score may pick it where None does not. accept still
+        stops the search, whatever rank_key, but is tested on the best read so far: rank accepted reads first so
+        that they are kept. Given, it also skips the black-tophat rescale 0.2.0 tries after a valid black-tophat
+        read (one OCR call fewer), since that read is accepted. accept and rank_key never see aux['view'], set
+        once the result is known. As in 0.2.0, accept sees the '|max_width' suffix TryOtherMaxWidth adds to the
+        MRZ it returns; with keep_candidates, so does rank_key when ranking the candidates.
+    :param keep_candidates: fill MRZResult.candidates with every read made, one per OCR call (two with the CNI_FR
+        reading from_ocr did not return, a candidate even without rank_key), in pass 1 (TryOtherMaxWidth included)
+        and pass 2, kept or not, also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
+        has aux['method'] (its variant, e.g. 'black_tophat(rescaled(3))'), aux['raw_text'] and aux['view'], the
+        view it was read in, as MRZResult.view. Two reads are no candidates: the text read upside down, replaced
+        by the flipped read; and the empty read of a zone whose first OCR call the deadline skipped, so that mrz
+        is a candidate unless accept accepts such an empty read. Only observes: mrz, accepted, view and the OCR
+        calls are the same as without it (mrz, being one of the candidates, then also has aux['view']).
 
     When a bound is reached, the read stops without exception and returns the best MRZ read so far, with
     budget_exhausted=True. With the default parameters, the OCR calls and .mrz are those of read_mrz.
@@ -546,11 +609,15 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         raise ValueError('pass1=False needs views')
     if pass1:
         p = MRZPipeline(file, extra_cmdline_params, lang=lang, accept=accept, max_ocr_calls=max_ocr_calls,
-                        deadline=deadline)
+                        deadline=deadline, rank_key=rank_key, keep_candidates=keep_candidates)
         budget, box_to_mrz = p.budget, p.components['mrz'].box_to_mrz
     else:
         budget = OCRBudget(max_ocr_calls, deadline)
-        box_to_mrz = BoxToMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang, accept=accept, budget=budget)
+        box_to_mrz = BoxToMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang, accept=accept, budget=budget,
+                              rank_key=rank_key, keep_candidates=keep_candidates)
+    reads = box_to_mrz.candidates  # None without keep_candidates
+    # The view of each read, set on aux only once the result is known, so that accept and rank_key never see it
+    read_views = []
 
     mrz = view = None
     if deadline is not None and budget.time_left() <= 0:
@@ -559,25 +626,45 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
     else:
         covered = set()
         if pass1:
+            # The boxes at 250 px first, as p.result would, to tell their reads from those of a TryOtherMaxWidth rerun
+            p['mrz']
+            _note_view(reads, read_views, (0, 250))
             mrz = p.result
             final_width = p.components['scaler'].max_width
+            _note_view(reads, read_views, (0, final_width))
             view = None if mrz is None else (0, final_width)
             covered = {(0, 250), (0, final_width)}
         if views and not (mrz is not None and box_to_mrz.accepts(mrz)):
             img = p['img'] if pass1 else Loader(file)()
             for zone, zone_mrz in _read_zones(_locate_zones(img, views, covered, budget), img, box_to_mrz):
-                # Reads not accepted are dropped for now
+                _note_view(reads, read_views, zone.view)
+                # Reads not accepted are only candidates
                 if box_to_mrz.accepts(zone_mrz):
                     mrz, view = zone_mrz, zone.view
                     break
+    accepted = mrz is not None and box_to_mrz.accepts(mrz)
+    candidates = ()
+    if reads is not None:
+        # sorted() is stable with reverse=True too: reading order on a tie
+        candidates = tuple(sorted(reads, key=box_to_mrz.rank, reverse=True))
+        for read, read_view in zip(reads, read_views):
+            read.aux['view'] = read_view
     return MRZResult(
         mrz=mrz,
-        accepted=mrz is not None and box_to_mrz.accepts(mrz),
+        accepted=accepted,
         view=view,
         ocr_calls=budget.calls,
         elapsed_s=time.monotonic() - start,
         budget_exhausted=budget.exhausted,
+        candidates=candidates,
     )
+
+
+def _note_view(reads, read_views, view):
+    """Appends `view` to read_views for each read of `reads` made since the last call. reads None (no candidates
+    kept): nothing to do."""
+    if reads is not None:
+        read_views.extend([view] * (len(reads) - len(read_views)))
 
 
 # ---------------------------------------------------------------------------

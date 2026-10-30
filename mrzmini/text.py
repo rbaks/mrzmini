@@ -83,7 +83,34 @@ class MRZ(object):
         Like any modulo 10 check digit, a single misread whose value differs by a multiple of 10 (e.g. '<' read as 'K')
         still passes every check. This applies after correction: '<' read as 'C' in the administrative code becomes '0',
         and '<' read as '4' in a name becomes 'A', both worth the same as '<'.
+
+        Three more attributes, not in to_dict either, are None on every other type (MRZ(lines) included):
+        detection_mode, how the raw lines were recognised (see looks_like_cni_fr): 'prefix', 'shifted' or 'line2';
+        surname_truncated and names_truncated, True when the surname field (25 characters) or the names field
+        (14 characters) is full, so that its last name may be cut. They are None unless the field positions are
+        reliable: 'prefix' mode with two raw lines of 36 characters.
+
+        >>> m = MRZ.from_ocr('IDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123\\n1507069012348JEAN<<PIERRE<<8503127M2')
+        >>> m.mrz_type, m.detection_mode, m.surname_truncated, m.names_truncated
+        ('CNI_FR', 'prefix', False, False)
+        >>> m = MRZ.from_ocr('IDFRADUPONT<MOREAU<LEFEBVRE<GA069123\\n1507069012348ALEXANDRE<<MAR8503127M8')
+        >>> m.valid, m.surname, m.surname_truncated, m.names, m.names_truncated
+        (True, 'DUPONT MOREAU LEFEBVRE GA', True, 'ALEXANDRE MAR', True)
+        >>> m = MRZ.from_ocr('KIDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123\\n1507069012348JEAN<<PIERRE<<8503127M2')
+        >>> m.mrz_type, m.detection_mode, m.surname_truncated, m.names_truncated
+        ('CNI_FR', 'shifted', None, None)
+        >>> m = MRZ.from_ocr('XYFRAMARTIN<<<<<<<<<<<<<<<<<<<069123\\n1507069012348JEAN<<PIERRE<<8503127M2')
+        >>> m.mrz_type, m.detection_mode, m.surname_truncated, m.names_truncated
+        ('CNI_FR', 'line2', None, None)
+        >>> m = MRZ.from_ocr('P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\\nL898902C36UTO7408122F1204159ZE184226B<<<<<10')
+        >>> m.mrz_type, m.detection_mode, m.surname_truncated, m.names_truncated
+        ('TD3', None, None, None)
     """
+
+    #: CNI_FR only (see above); None on the other types
+    detection_mode = None
+    surname_truncated = None
+    names_truncated = None
 
     def __init__(self, mrz_lines):
         """
@@ -104,19 +131,32 @@ class MRZ(object):
         and that reading is returned if at least one of its line 2 check digits (number, date of birth) is valid
         and its valid_score is strictly higher than the standard one.
         """
+        return MRZ._from_ocr_reads(mrz_ocr_string)[0]
+
+    @staticmethod
+    def _from_ocr_reads(mrz_ocr_string):
+        """
+        The readings of from_ocr: a list of the MRZ it returns, then the CNI_FR reading it computed but did not return,
+        if any. Each one gets aux['text'] and aux['raw_text'].
+        """
         # The TD2 cleaner alters characters irreversibly (e.g. C, D, O, Q -> 0), so the CNI_FR path starts from the raw lines
         raw_lines = MRZOCRCleaner.instance()._split_lines(mrz_ocr_string)  # pylint: disable=protected-access
         result = MRZ(MRZOCRCleaner.apply(mrz_ocr_string))
+        reads = [result]
         if not result.valid:
             try:
                 cni = MRZ._read_cni_fr(raw_lines)
-                if cni is not None and (cni.valid_number or cni.valid_date_of_birth) and cni.valid_score > result.valid_score:
-                    result = cni
+                if cni is not None:
+                    if (cni.valid_number or cni.valid_date_of_birth) and cni.valid_score > result.valid_score:
+                        reads = [cni]
+                    else:
+                        reads.append(cni)
             except Exception:
                 pass
-        result.aux['text'] = mrz_ocr_string
-        result.aux['raw_text'] = mrz_ocr_string
-        return result
+        for mrz in reads:
+            mrz.aux['text'] = mrz_ocr_string
+            mrz.aux['raw_text'] = mrz_ocr_string
+        return reads
 
     @staticmethod
     def _detect_cni_fr(lines):
@@ -158,7 +198,15 @@ class MRZ(object):
         mrz = MRZ.__new__(MRZ)
         mrz.aux = {}
         mrz.mrz_type = 'CNI_FR'
+        mrz.detection_mode = detected
         mrz.valid = mrz._parse_cni_fr(fixed_a, fixed_b, a, b)
+        # Field positions hold only on lines of the right length, raw and corrected (upper() may lengthen a character):
+        # in 'shifted' mode the stray character is kept, and a short line is padded with '<'
+        if detected == 'prefix' and len(a) == len(b) == len(fixed_a) == len(fixed_b) == 36:
+            mrz.surname_truncated = fixed_a[29] != '<'
+            mrz.names_truncated = fixed_b[26] != '<'
+        else:
+            mrz.surname_truncated = mrz.names_truncated = None
         return mrz
 
     def _parse(self, mrz_lines):
@@ -628,3 +676,28 @@ class MRZCheckDigit(object):
         if getattr(MRZCheckDigit, '__instance__', None) is None:
             MRZCheckDigit.__instance__ = MRZCheckDigit()
         return MRZCheckDigit.__instance__(txt)
+
+
+def looks_like_cni_fr(lines):
+    """
+    Tells whether raw OCR lines may be a CNI_FR MRZ, by the loose test MRZ.from_ocr runs before reading them as CNI_FR.
+    Returns None (not a candidate), 'prefix' (2 lines of 34 to 38 characters, line 1 starting with IDFRA, one character
+    off at most), 'shifted' (same, after one stray leading character) or 'line2' (only line 2 has the CNI_FR shape).
+
+    `lines` are split already: this function does not split a text, since from_ocr drops the lines shorter than 20
+    characters while a caller may want exactly two non-empty lines. Spaces count as characters. A string raises
+    TypeError.
+    To test only line 1 (near IDFRA, maybe after one stray character), ignore 'line2'.
+
+    >>> looks_like_cni_fr(['IDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123', '1507069012348JEAN<<PIERRE<<8503127M2'])
+    'prefix'
+    >>> looks_like_cni_fr(['KIDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123', '1507069012348JEAN<<PIERRE<<8503127M2'])
+    'shifted'
+    >>> looks_like_cni_fr(['XYFRAMARTIN<<<<<<<<<<<<<<<<<<<069123', '1507069012348JEAN<<PIERRE<<8503127M2'])
+    'line2'
+    >>> looks_like_cni_fr(['I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<', 'D231458907UTO7408122F1204159<<<<<<<6']) is None
+    True
+    """
+    if isinstance(lines, str):
+        raise TypeError('lines: expected a sequence of lines, not a string: split it first')
+    return MRZ._detect_cni_fr(list(lines))  # pylint: disable=protected-access
