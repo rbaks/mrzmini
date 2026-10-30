@@ -104,19 +104,32 @@ class MRZ(object):
         and that reading is returned if at least one of its line 2 check digits (number, date of birth) is valid
         and its valid_score is strictly higher than the standard one.
         """
+        return MRZ._from_ocr_reads(mrz_ocr_string)[0]
+
+    @staticmethod
+    def _from_ocr_reads(mrz_ocr_string):
+        """
+        The readings of from_ocr: a list of the MRZ it returns, then the CNI_FR reading it computed but did not return,
+        if any. Each one gets aux['text'] and aux['raw_text'].
+        """
         # The TD2 cleaner alters characters irreversibly (e.g. C, D, O, Q -> 0), so the CNI_FR path starts from the raw lines
         raw_lines = MRZOCRCleaner.instance()._split_lines(mrz_ocr_string)  # pylint: disable=protected-access
         result = MRZ(MRZOCRCleaner.apply(mrz_ocr_string))
+        reads = [result]
         if not result.valid:
             try:
                 cni = MRZ._read_cni_fr(raw_lines)
-                if cni is not None and (cni.valid_number or cni.valid_date_of_birth) and cni.valid_score > result.valid_score:
-                    result = cni
+                if cni is not None:
+                    if (cni.valid_number or cni.valid_date_of_birth) and cni.valid_score > result.valid_score:
+                        reads = [cni]
+                    else:
+                        reads.append(cni)
             except Exception:
                 pass
-        result.aux['text'] = mrz_ocr_string
-        result.aux['raw_text'] = mrz_ocr_string
-        return result
+        for mrz in reads:
+            mrz.aux['text'] = mrz_ocr_string
+            mrz.aux['raw_text'] = mrz_ocr_string
+        return reads
 
     @staticmethod
     def _detect_cni_fr(lines):
