@@ -309,14 +309,16 @@ class BoxToMRZ(object):
             Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
         :param accept: a predicate MRZ -> bool that stops the search: no further variant is tried once the
             current MRZ satisfies it. None means mrz.valid, as in 0.2.0, which tries the black-tophat rescale
-            even after a valid black-tophat read. The best variant is still chosen by rank.
+            even after a valid black-tophat read (without rank_key only). The best variant is still chosen by rank.
         :param budget: an OCRBudget, checked before each variant and each OCR call. Once spent, the best
             variant read so far is returned. With a deadline, ocr() gets the time left as timeout.
         :param rank_key: a function MRZ -> comparable key that picks the best variant (strictly greater key; on a
             tie, the first one). None means valid_score, as in 0.2.0. Given, the CNI_FR reading MRZ.from_ocr
             computed but did not return competes as a read of its own.
         :param keep_candidates: keep every read in self.candidates, in reading order, the CNI_FR reading
-            MRZ.from_ocr did not return included. Only observes: the reads chosen are the same.
+            MRZ.from_ocr did not return included: one per OCR call (two with that CNI_FR reading), none for a call
+            the budget skipped. Only observes: the reads chosen are the same. The list grows over all the calls of
+            this object: use one per read.
         """
         self.lang = _check_lang(lang, extra_cmdline_params)
         self.use_original_image = use_original_image
@@ -334,7 +336,16 @@ class BoxToMRZ(object):
 
     def _better(self, cur_text, cur_mrz, new_text, method):
         """Parses new_text, read by the variant `method`, and returns the best of (cur_text, cur_mrz) and its reads:
-        a read replaces the current one only if its rank is strictly higher. cur_mrz None: the first read wins."""
+        a read replaces the current one only if its rank is strictly higher. cur_mrz None: the first read wins.
+
+        new_text None: the budget skipped the OCR call, nothing was read. The current read is kept; without one, ''
+        is parsed as in 0.2.0, but not kept as a candidate."""
+        read = new_text is not None
+        if not read:
+            if cur_mrz is not None:
+                # '' could only replace it with a rank_key, and was never read
+                return cur_text, cur_mrz
+            new_text = ''
         if self.rank_key is None and self.candidates is None:
             # As in 0.2.0: from_ocr alone
             reads = [MRZ.from_ocr(new_text)]
@@ -342,7 +353,7 @@ class BoxToMRZ(object):
             reads = MRZ._from_ocr_reads(new_text)  # pylint: disable=protected-access
         for mrz in reads:
             mrz.aux['method'] = method
-        if self.candidates is not None:
+        if self.candidates is not None and read:
             self.candidates.extend(reads)
         if self.rank_key is None:
             # The CNI_FR reading from_ocr did not return is then only a candidate
@@ -353,8 +364,9 @@ class BoxToMRZ(object):
         return cur_text, cur_mrz
 
     def _ocr(self, img):
+        """The OCR text of img, or None if the budget is spent (no call made)."""
         if self.budget.spent():
-            return ''
+            return None
         self.budget.calls += 1
         # lang and timeout are passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
         kwargs = {}
@@ -375,7 +387,7 @@ class BoxToMRZ(object):
         roi = box.extract_from_image(img, scale)
         text = self._ocr(roi)
 
-        if ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
+        if text is not None and ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
             # Most probably we need to reverse the ROI
             roi = roi[::-1, ::-1]
             text = self._ocr(roi)
@@ -414,8 +426,9 @@ class BoxToMRZ(object):
         new_text = self._ocr(roi_b)
         cur_text, cur_mrz = self._better(cur_text, cur_mrz, new_text, 'black_tophat')
 
-        # 0.2.0 tries the rescale even after a valid black-tophat read: kept without accept, for parity
-        if self.accept is None or not self.accepts(cur_mrz):
+        # 0.2.0 tries the rescale even after a valid black-tophat read: kept without accept and rank_key, for parity.
+        # With rank_key, its read could replace the valid one.
+        if (self.accept is None and self.rank_key is None) or not self.accepts(cur_mrz):
             cur_text, cur_mrz = self._try_larger_image(roi_b, cur_text, cur_mrz, method='black_tophat(rescaled(3))')
 
         return cur_text, cur_mrz
@@ -569,9 +582,11 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         empty ones (mrz_type None). None means valid_score, as in 0.2.0. Given, the CNI_FR reading MRZ.from_ocr
         computed but did not return (a standard reading scoring higher, or no valid check digit on line 2) competes
         as a read of its own, so rank_key=lambda m: m.valid_score may pick it where None does not. accept still
-        stops the search, whatever rank_key: rank accepted reads first so that they are kept.
-    :param keep_candidates: fill MRZResult.candidates with every read made, in pass 1 (TryOtherMaxWidth included)
-        and pass 2, kept or not, also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
+        stops the search, whatever rank_key, but is tested on the best read so far: rank accepted reads first so
+        that they are kept. When choosing, reads have no aux['view'] yet, nor the '|max_width' suffix.
+    :param keep_candidates: fill MRZResult.candidates with every read made, one per OCR call (but for a text read
+        upside down, replaced by the flipped read), in pass 1 (TryOtherMaxWidth included) and pass 2, kept or not,
+        also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
         has aux['method'] (its variant, e.g. 'black_tophat(rescaled(3))'), aux['raw_text'] and aux['view'], the
         view it was read in, as MRZResult.view. Also the CNI_FR reading from_ocr did not return, even without
         rank_key. Only observes: mrz, accepted, view and the OCR calls are the same as without it (mrz, being one

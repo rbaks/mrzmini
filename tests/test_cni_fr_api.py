@@ -143,6 +143,8 @@ def test_looks_like_cni_fr_is_detect_cni_fr():
 
 def test_looks_like_cni_fr_does_not_split():
     assert looks_like_cni_fr([L1 + '\n' + L2]) is None
+    with pytest.raises(TypeError):
+        looks_like_cni_fr(L1 + '\n' + L2)
 
 
 def greenloc_shape(text):

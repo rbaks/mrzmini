@@ -88,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   characters). They are `None` on the other types, `MRZ(lines)` included,
   and not in `to_dict()`, which is unchanged. `mrzmini.looks_like_cni_fr(lines)`
   runs the shape test of `MRZ.from_ocr` on lines already split and returns
-  the detection mode, or `None`.
+  the detection mode, or `None`; a string raises `TypeError`.
 
 ### Changed
 

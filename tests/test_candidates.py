@@ -8,6 +8,7 @@ from unittest import mock
 
 import pytest
 
+import mrzmini.image as mrzmini_image
 from mrzmini import MRZ, ROTATED_VIEWS, read_mrz, read_mrz_detailed
 from mrzmini.text import MRZCheckDigit
 from pipeline_recording import (CNI_FR_LINE2, CNI_L1, CNI_L2, SCORE_25, SCORE_44_A, SCORE_44_B, SCORE_62_A,
@@ -329,3 +330,155 @@ def test_no_new_aux_key_by_default(image, texts, extra, zone, n_calls, method):
         result = read_mrz_detailed(data, **kwargs)
     for m in (mrz, result.mrz):
         assert m is None or set(m.aux) == {'text', 'raw_text', 'method'}
+
+
+# ---------------------------------------------------------------------------
+# Review follow-up
+# ---------------------------------------------------------------------------
+def test_valid_black_tophat_read_kept_with_rank_key():
+    # Without accept, 0.2.0 tries the black-tophat rescale even after a valid black-tophat read. With rank_key, that
+    # rescale could replace the valid read (here by a CNI_FR ranked first): it is not tried.
+    data = image_png('card_td3_rgb')
+    texts = [SCORE_44_A, SCORE_44_A, SCORE_44_A, VALID, CNI_FR_LINE2]
+    record, result = run_read_mrz_detailed(data, texts, None, rank_key=cni_fr_first)
+    assert result.ocr_calls == 4 and result.accepted is True
+    assert result.mrz.valid and record['method'] == 'black_tophat'
+
+    # Without rank_key, as in 0.2.0: 5 calls, the valid read kept
+    record, result = run_read_mrz_detailed(data, texts, None)
+    assert result.ocr_calls == 5 and result.accepted is True and record['method'] == 'black_tophat'
+
+    # Accepted in pass 1: no pass 2
+    with mock.patch('mrzmini.image._locate_zones', side_effect=AssertionError('pass 2 run')):
+        _, result = run_read_mrz_detailed(data, texts, None, views=ROTATED_VIEWS, rank_key=cni_fr_first)
+    assert result.accepted is True and result.ocr_calls == 4
+
+
+class Clock(object):
+    """Stands for the time module in mrzmini.image."""
+
+    def __init__(self):
+        self.now = 0.0
+
+    def monotonic(self):
+        return self.now
+
+
+@pytest.mark.parametrize('rank_key', [None, cni_fr_first])
+def test_no_candidate_for_a_call_the_deadline_skipped(rank_key):
+    # The deadline passes while the black-tophat filter runs (no OCR): its read is skipped, and is no candidate
+    import mrzmini.image as mi
+    black_tophat = mi.ip.black_tophat
+
+    def read(keep):
+        clock, calls = Clock(), []
+
+        def ocr(img, **kwargs):
+            calls.append(img.shape)
+            return SCORE_44_A
+
+        def slow_black_tophat(*args, **kwargs):
+            # The detection uses the filter too: only the black-tophat variant, after 3 calls, is slow
+            if len(calls) == 3:
+                clock.now += 100
+            return black_tophat(*args, **kwargs)
+
+        with mock.patch('mrzmini.image.time', clock), mock.patch('mrzmini.image.ocr', ocr), \
+                mock.patch('mrzmini.image.ip.black_tophat', slow_black_tophat):
+            result = read_mrz_detailed(image_png('card_td3_rgb'), deadline=50.0, keep_candidates=keep,
+                                       rank_key=rank_key)
+        return result, calls
+
+    result, calls = read(True)
+    assert result.ocr_calls == len(calls) == 3 and result.budget_exhausted is True
+    assert [c.aux['method'] for c in result.candidates] == ['direct', 'rescaled(3)', 'rescaled(1)']
+    plain, _ = read(False)
+    assert result.mrz.to_dict() == plain.mrz.to_dict() and result.ocr_calls == plain.ocr_calls
+
+
+@pytest.mark.parametrize('image, texts, extra, zone, n_calls, method', SCENARIOS)
+def test_keep_candidates_only_observes_bounded(image, texts, extra, zone, n_calls, method):
+    data = image_png(image)
+    for max_calls in range(n_calls + 1):
+        for rank_key in (None, cni_fr_first):
+            plain = run_read_mrz_detailed(data, texts, extra, max_ocr_calls=max_calls, rank_key=rank_key)
+            record, result = run_read_mrz_detailed(data, texts, extra, max_ocr_calls=max_calls, rank_key=rank_key,
+                                                   keep_candidates=True)
+            assert record == plain[0]
+            assert (result.accepted, result.view, result.ocr_calls, result.budget_exhausted) == \
+                (plain[1].accepted, plain[1].view, plain[1].ocr_calls, plain[1].budget_exhausted)
+            # One read per call, but for the text read upside down when the ROI was flipped
+            flipped = bool(texts) and texts[0] == UPSIDE_DOWN and result.ocr_calls >= 2
+            assert len(result.candidates) == result.ocr_calls - flipped
+
+
+@pytest.mark.parametrize('image, texts, extra, zone, n_calls, method', SCENARIOS)
+def test_keep_candidates_only_observes_with_rank_key(image, texts, extra, zone, n_calls, method):
+    data = image_png(image)
+    plain = run_read_mrz_detailed(data, texts, extra, rank_key=cni_fr_first)
+    record, result = run_read_mrz_detailed(data, texts, extra, rank_key=cni_fr_first, keep_candidates=True)
+    assert record == plain[0]
+    assert (result.accepted, result.view, result.ocr_calls) == (plain[1].accepted, plain[1].view, plain[1].ocr_calls)
+    keys = [cni_fr_first(c) for c in result.candidates]
+    assert keys == sorted(keys, reverse=True)
+
+
+def test_candidates_of_pass1_rerun_and_pass2():
+    # Pass 1 reads nothing at 250 px, nor in the TryOtherMaxWidth rerun; pass 2 reads the MRZ
+    phase = []
+    locate_zones = mrzmini_image._locate_zones
+
+    def pass2(*args):
+        phase.append(2)
+        return locate_zones(*args)
+
+    def ocr(img, **kwargs):
+        return VALID if phase else ''
+
+    with mock.patch('mrzmini.image._locate_zones', pass2), mock.patch('mrzmini.image.ocr', ocr):
+        result = read_mrz_detailed(image_png('a4_card_480'), views=[(0, 500)], accept=lambda m: m.valid and phase,
+                                   keep_candidates=True)
+    assert result.accepted is True and result.view == (0, 500)
+    views = [c.aux['view'] for c in result.candidates]
+    assert result.candidates[0] is result.mrz and views[0] == (0, 500)
+    # The reads in vain, in reading order: pass 1, then its rerun at 1000 px
+    assert set(views[1:]) == {(0, 250), (0, 1000)}
+    assert views[1:] == sorted(views[1:], key=lambda v: v[1])
+
+
+def test_discarded_cni_fr_in_rerun_and_pass2():
+    # In the TryOtherMaxWidth rerun
+    data = image_png('a4_card_480')
+    record, result = run_read_mrz_detailed(data, ['', HIDDEN_CNI_FR], None, accept=cni_fr_line2,
+                                           rank_key=cni_fr_first)
+    assert result.accepted is True and result.mrz.mrz_type == 'CNI_FR' and result.view == (0, 1000)
+    assert record['method'] == 'direct|max_width(1000)'
+
+    # In pass 2: accepted at its first call with rank_key, never without
+    image = PAGES['cni_90'][0]()
+    with mock.patch('mrzmini.image.ocr', return_value=HIDDEN_CNI_FR):
+        result = read_mrz_detailed(image, pass1=False, views=ROTATED_VIEWS, accept=cni_fr_line2,
+                                   rank_key=cni_fr_first, keep_candidates=True)
+    assert result.ocr_calls == 1 and result.accepted is True and result.view == (270, 250)
+    assert summary(result.candidates) == [('CNI_FR', 71, 'direct', (270, 250)), ('TD2', 77, 'direct', (270, 250))]
+    with mock.patch('mrzmini.image.ocr', return_value=HIDDEN_CNI_FR):
+        result = read_mrz_detailed(image, pass1=False, views=ROTATED_VIEWS, accept=cni_fr_line2)
+    assert result.mrz is None and result.ocr_calls > 1
+
+
+def test_rank_key_keeps_positive_score_filter():
+    # Box 1 reads 44 in each variant, box 2 an empty text (score 0), which rank_key prefers: only boxes with a
+    # positive valid_score compete, as without rank_key
+    texts = [SCORE_44_A] * 5 + ['']
+    _, result = run_read_mrz_detailed(image_png('card_td3_rotated_90'), texts, None,
+                                      rank_key=lambda m: m.mrz_type is None)
+    assert result.ocr_calls == 6 and result.mrz.valid_score == 44
+
+
+def test_accept_tested_on_best_read_by_rank_key():
+    # Documented choice: accept is tested on the best read so far. A valid TD3 that rank_key ranks below the CNI_FR
+    # is not kept, and the search goes on; it stays among the candidates.
+    _, result = run_read_mrz_detailed(image_png('card_td3_rgb'), [CNI_FR_LINE2, VALID], None,
+                                      accept=lambda m: m.valid, rank_key=cni_fr_first, keep_candidates=True)
+    assert result.mrz.mrz_type == 'CNI_FR' and result.accepted is False and result.ocr_calls == 5
+    assert [(c.mrz_type, c.aux['method']) for c in result.candidates if c.valid] == [('TD3', 'rescaled(3)')]
