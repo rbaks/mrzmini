@@ -108,6 +108,19 @@ def test_pil_modes_match_png(mode):
         assert got.dtype == np.float64  # luma
 
 
+@pytest.mark.parametrize('layout', [
+    pytest.param(np.asfortranarray, id='fortran'),
+    pytest.param(lambda a: np.moveaxis(np.ascontiguousarray(np.moveaxis(a, -1, 0)), 0, -1), id='chw_as_hwc'),
+])
+def test_rgb_array_layout(layout):
+    rgb = IMAGES['a4_card_480']()
+    arr = layout(rgb)
+    assert not arr.flags.c_contiguous
+
+    # Exactly the luma of the PNG, not only within rounding
+    np.testing.assert_array_equal(Loader(arr)(), Loader(png(rgb))())
+
+
 def test_rgba_array_ignores_alpha():
     rgb = rgb_sample()
     rgba = np.dstack([rgb, np.zeros(rgb.shape[:2], np.uint8)])
@@ -156,6 +169,7 @@ def test_unsupported_array_shape_raises(arr):
 @pytest.mark.parametrize('arr', [
     pytest.param(np.zeros((20, 30), object), id='object'),
     pytest.param(np.zeros((20, 30), complex), id='complex'),
+    pytest.param(np.zeros((20, 30), 'm8[s]'), id='timedelta'),
     pytest.param(np.zeros((0, 0), np.uint8), id='empty'),
 ])
 def test_unsupported_array_values_raise(arr):

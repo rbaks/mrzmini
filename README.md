@@ -46,7 +46,7 @@ mrzmini passport.jpg
 rendered page does not need to be encoded as PNG first:
 
 ```python
-mrz = read_mrz(pil_image)  # PIL.Image.Image, any mode
+mrz = read_mrz(pil_image)  # PIL.Image.Image
 mrz = read_mrz(array)      # numpy.ndarray: 2D gray, or uint8 RGB/RGBA
 ```
 

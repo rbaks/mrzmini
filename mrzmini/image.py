@@ -64,8 +64,7 @@ class Loader(object):
                         'a PIL.Image.Image or a numpy.ndarray' % type(self.file).__name__)
 
     def _from_array(self, arr):
-        if arr.size == 0 or not (arr.dtype == bool or np.issubdtype(arr.dtype, np.integer)
-                                 or np.issubdtype(arr.dtype, np.floating)):
+        if arr.size == 0 or arr.dtype.kind not in 'biuf':
             raise TypeError('unsupported array of shape %s and dtype %s: expected a non-empty array of numbers'
                             % (arr.shape, arr.dtype))
         if arr.ndim == 2 and arr.dtype == bool:
@@ -74,7 +73,8 @@ class Loader(object):
         if arr.ndim == 2:
             return arr
         if arr.ndim == 3 and arr.dtype == np.uint8 and arr.shape[-1] in (3, 4):
-            return ip.rgb_to_gray(arr)
+            # The luma product rounds differently on another memory layout (e.g. a CHW buffer seen as HWC)
+            return ip.rgb_to_gray(np.ascontiguousarray(arr))
         raise TypeError('unsupported array of shape %s and dtype %s: expected 2D (grayscale) '
                         'or 3D uint8 with 3 or 4 channels (RGB or RGBA)' % (arr.shape, arr.dtype))
 
