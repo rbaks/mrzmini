@@ -14,6 +14,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # Checked before publish: a version PyPI accepted cannot be uploaded again
+      # once the CHANGELOG is fixed.
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          # Section body between "## [<version>]" and the next "## [" heading
+          # (or the link definitions at the end of the file).
+          awk -v v="$version" '
+            index($0, "## [" v "]") == 1 { found = 1; next }
+            found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
+            found { print }
+          ' CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if ! grep -q '[^[:space:]]' "$RUNNER_TEMP/notes.md"; then
+            echo "::error::No '## [$version]' section in CHANGELOG.md"
+            exit 1
+          fi
       - name: Install uv
         uses: astral-sh/setup-uv@v5
       - name: Build sdist and wheel
@@ -23,6 +39,12 @@ jobs:
         with:
           name: dist
           path: dist/
+      - name: Upload release notes
+        uses: actions/upload-artifact@v4
+        with:
+          name: notes
+          # Outside the checkout, so that uv build does not put it in the sdist
+          path: ${{ runner.temp }}/notes.md
 
   publish:
     needs: build
@@ -53,20 +75,10 @@ jobs:
         with:
           name: dist
           path: dist/
-      - name: Extract release notes from CHANGELOG.md
-        run: |
-          version="${GITHUB_REF_NAME#v}"
-          # Section body between "## [<version>]" and the next "## [" heading
-          # (or the link definitions at the end of the file).
-          awk -v v="$version" '
-            index($0, "## [" v "]") == 1 { found = 1; next }
-            found && (/^## \[/ || /^\[[^]]+\]: /) { exit }
-            found { print }
-          ' CHANGELOG.md > notes.md
-          if ! grep -q '[^[:space:]]' notes.md; then
-            echo "::error::No '## [$version]' section in CHANGELOG.md"
-            exit 1
-          fi
+      - name: Download release notes
+        uses: actions/download-artifact@v4
+        with:
+          name: notes
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
