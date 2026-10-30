@@ -37,6 +37,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   one time in two; it relies on the `>>` check of `BoxToMRZ` or on the views
   of pass 2. With the default options, the zone extracted in 8 of the parity
   scenarios is 1 pixel larger; the OCR calls and the results are unchanged.
+  On the 36 test files of PassportEye (tesseract 5.5.3), 3 reads change: one
+  is better (`24_pass-egy`), one valid read is lost (`100_visa-polx`, score
+  100 → 97), one has the same score.
 
 ## [0.3.1] - 2026-10-30
 

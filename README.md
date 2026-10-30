@@ -116,7 +116,7 @@ There are four differences:
   PassportEye extracts it upside down when the text rises to the right.
   Then it can read the zone only if tesseract reads `<` upside down as `>`.
   The box angles can differ by 180°, and tesseract reads a slightly different image.
-  With tesseract 5.5.3, 3 of the 38 images give a different read:
+  With tesseract 5.5.3, 3 of the 36 test files give a different read:
   one is better (`24_pass-egy`), one is worse (`100_visa-polx`, valid in PassportEye only), one has the same score.
 - mrzmini can read an invalid MRZ as `CNI_FR`, with a different `valid_score`.
 - When PassportEye gives no `method`, mrzmini gives `method='direct'`.

@@ -5,8 +5,10 @@ This is a copy of PassportEye's ``passporteye/mrz/text.py``.
 It is pure Python (only depends on the standard library) and is reproduced
 unchanged so that parsing/validation behavior matches upstream exactly,
 with one deliberate addition: the 'CNI_FR' type (pre-2021 French national
-identity card, 2x36 non-ICAO MRZ), handled in MRZ.from_ocr only.
-MRZ(lines) called directly behaves exactly as upstream.
+identity card, 2x36 non-ICAO MRZ), handled in MRZ.from_ocr only,
+and one deliberate change: TD1 and TD2 read document numbers longer than
+9 characters (ICAO 9303). Otherwise MRZ(lines) called directly behaves
+exactly as upstream.
 
 Author: Konstantin Tretyakov
 License: MIT
