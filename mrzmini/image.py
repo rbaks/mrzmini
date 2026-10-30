@@ -14,6 +14,7 @@ Author of original: Konstantin Tretyakov. License: MIT.
 import io
 
 import numpy as np
+from PIL import Image
 
 from . import imageproc as ip
 from .pdf import extract_first_jpeg_in_pdf
@@ -24,7 +25,12 @@ from .text import MRZ
 
 
 class Loader(object):
-    """Loads `file` to `img`."""
+    """Loads `file` to `img`.
+
+    `file` may be a path (str, PDF included), bytes, a binary stream, a PIL.Image.Image (converted like a
+    decoded file, without Image.open) or a numpy.ndarray: 2D as grayscale with its dtype kept, 3D uint8 with
+    3 or 4 channels as RGB(A). Any other type raises TypeError.
+    """
 
     __depends__ = []
     __provides__ = ['img']
@@ -50,7 +56,20 @@ class Loader(object):
                 return self._imread(self.file)
         elif isinstance(self.file, (bytes, io.IOBase)):
             return self._imread(self.file)
-        return None
+        elif isinstance(self.file, Image.Image):
+            return ip.to_gray(self.file)
+        elif isinstance(self.file, np.ndarray):
+            return self._from_array(self.file)
+        raise TypeError('unsupported image type %s: expected a path (str), bytes, a binary stream, '
+                        'a PIL.Image.Image or a numpy.ndarray' % type(self.file).__name__)
+
+    def _from_array(self, arr):
+        if arr.ndim == 2:
+            return arr
+        if arr.ndim == 3 and arr.dtype == np.uint8 and arr.shape[-1] in (3, 4):
+            return ip.rgb_to_gray(arr)
+        raise TypeError('unsupported array of shape %s and dtype %s: expected 2D (grayscale) '
+                        'or 3D uint8 with 3 or 4 channels (RGB or RGBA)' % (arr.shape, arr.dtype))
 
 
 class Scaler(object):
@@ -347,7 +366,9 @@ def read_mrz(file, save_roi=False, extra_cmdline_params=''):
     """The main interface function to this module, encapsulating the recognition pipeline.
        Given an image filename, runs MRZPipeline on it, returning the parsed MRZ object.
 
-    :param file: A filename or a stream to read the file data from.
+    :param file: A filename (image or PDF), bytes or a binary stream to read the file data from, or an image
+        already in memory: a PIL.Image.Image, or a numpy.ndarray (2D grayscale, or 3D uint8 RGB/RGBA).
+        Any other type raises TypeError.
     :param save_roi: when this is True, the .aux['roi'] field will contain the Region of Interest where the MRZ was parsed from.
     :param extra_cmdline_params: extra parameters to the OCR.
     """

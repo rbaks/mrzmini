@@ -39,6 +39,19 @@ Command line:
 mrzmini passport.jpg
 ```
 
+### Images in memory
+
+`read_mrz` and `MRZPipeline` also take an image already in memory, so a
+rendered page does not need to be encoded as PNG first:
+
+```python
+mrz = read_mrz(pil_image)  # PIL.Image.Image, any mode
+mrz = read_mrz(array)      # numpy.ndarray: 2D gray, or uint8 RGB/RGBA
+```
+
+The result is the same as with the same image saved as PNG. A 2D array keeps
+its dtype, like a grayscale file. Any other input type raises `TypeError`.
+
 ## Supported formats
 
 - ICAO: TD1, TD2, TD3, MRVA, MRVB.

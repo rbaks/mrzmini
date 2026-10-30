@@ -73,17 +73,31 @@ def imread_gray(source):
         fobj = source
     with Image.open(fobj) as im:
         im.load()
-        mode = im.mode
-        if mode in ('RGB', 'RGBA'):
-            arr = np.asarray(im)
-        elif mode == 'L':
-            return np.asarray(im)  # keep uint8, like skimage
-        elif mode in ('I', 'I;16', 'F'):
-            return np.asarray(im)
-        else:
-            # Palette, LA, CMYK, etc.: normalise to RGB first, like imageio would.
-            arr = np.asarray(im.convert('RGB'))
+        return to_gray(im)
 
+
+def to_gray(im):
+    """Convert an already opened PIL image to grayscale, as :func:`imread_gray` does.
+
+    * ``RGB`` / ``RGBA`` -> ``float64`` luma in ``[0, 1]``.
+    * ``L``, ``I``, ``I;16``, ``F`` -> returned with their native dtype.
+    * Other modes (palette, LA, CMYK, ...) -> converted to RGB first, then luma.
+    """
+    mode = im.mode
+    if mode in ('RGB', 'RGBA'):
+        arr = np.asarray(im)
+    elif mode == 'L':
+        return np.asarray(im)  # keep uint8, like skimage
+    elif mode in ('I', 'I;16', 'F'):
+        return np.asarray(im)
+    else:
+        # Palette, LA, CMYK, etc.: normalise to RGB first, like imageio would.
+        arr = np.asarray(im.convert('RGB'))
+    return rgb_to_gray(arr)
+
+
+def rgb_to_gray(arr):
+    """``(h, w, 3|4)`` array -> ``float64`` luma (alpha ignored); other shapes are returned unchanged."""
     if arr.ndim == 3 and arr.shape[-1] in (3, 4):
         rgb = img_as_float(arr[..., :3])
         return rgb @ _GRAY_COEFFS

@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `read_mrz` and `MRZPipeline` accept an image already in memory: a
+  `PIL.Image.Image`, converted like a decoded file (without `Image.open`), or
+  a `numpy.ndarray`, 2D as grayscale with its dtype kept, or 3D `uint8` with 3
+  or 4 channels as RGB(A). The OCR calls and the result are the same as with
+  the image saved as PNG. The conversion is `mrzmini.imageproc.to_gray`, which
+  `imread_gray` now calls.
+
+### Changed
+
+- `Loader` raises `TypeError` for an unsupported input type, instead of
+  returning `None` and failing later in the pipeline. This includes
+  `pathlib.Path` and `bytearray`, which already failed in 0.2.0.
+
 ## [0.2.0] - 2026-10-29
 
 ### Added
