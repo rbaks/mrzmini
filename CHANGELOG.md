@@ -7,6 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- TD1 and TD2: a document number longer than 9 characters is now read whole
+  (ICAO 9303: the first 9 characters fill the number field, a `<` takes the
+  place of the check digit, and the rest of the number, then its check digit
+  and a `<`, open the optional data). `number` gives the full number (for
+  example `092150918ZY4` instead of `092150918`), `check_number` its check
+  digit, and `valid_number`, hence `valid`, can be `True`; before, they were
+  always `False` on such documents. The check digit is computed on the field
+  as written, the `<` included. This applies only when the check digit read is
+  `<`, at least 2 characters follow it and the check digit of the long number
+  is right; otherwise `number` and `valid_number` are unchanged. `optional1`
+  stays the raw text of the line. A `0` read as `<` on a document whose
+  optional data is filled passes the composite check, and the long number
+  check 1 time in 10.
+
+### Fixed
+
+- The MRZ zone is extracted upright whatever the direction of its tilt. A box
+  whose text rises to the right by more than 0.57° came out of
+  `RotatedBox.from_points` near -90° and was extracted turned by about 180°;
+  it was then read only if tesseract read the `<` upside down as `>` (with the
+  `mrz` model, it does not). `MRZBoxLocator._fixup_boxes` now takes a box
+  whose angle is below -45° the other way round (+180°, the same pixels).
+  Side effect: an upside-down document is no longer turned upright by chance
+  one time in two; it relies on the `>>` check of `BoxToMRZ` or on the views
+  of pass 2. With the default options, the zone extracted in 8 of the parity
+  scenarios is 1 pixel larger; the OCR calls and the results are unchanged.
+
 ## [0.3.1] - 2026-10-30
 
 ### Changed
