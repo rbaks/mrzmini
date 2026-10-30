@@ -13,6 +13,7 @@ from PIL import Image
 
 import mrzmini
 import mrzmini.image
+from mrzmini.geometry import RotatedBox
 from mrzmini.image import ROTATED_VIEWS, MRZPipeline, Scaler, read_mrz_detailed
 from pipeline_recording import (CNI_L1, CNI_L2, SCORE_44_A, TD3_L1, TD3_L2, VALID, draw_card, glyph, image_png, on_a4,
                                 run_read_mrz_detailed)
@@ -261,6 +262,18 @@ def test_small_card_found_at_1000(page, view):
     with mock.patch('mrzmini.image._wider_view', return_value=None):
         result, fake = read(image, lines, pass1=False, views=ROTATED_VIEWS)
     assert result.mrz is None
+
+
+def test_score_ignores_angle():
+    # A turned view often finds the MRZ of an upright page as a vertical box, which reads fine once extracted
+    thumbnail = np.zeros((160, 250))
+    scores = [mrzmini.image._box_score(RotatedBox([80, 125], 180, 29, angle), thumbnail)
+              for angle in (0.0, 0.3, np.pi / 2, -np.pi / 2)]
+    assert len(set(scores)) == 1 and scores[0] > 0
+    # Larger first; elongation counts up to 10
+    assert mrzmini.image._box_score(RotatedBox([80, 125], 90, 15, 0.0), thumbnail) < scores[0]
+    assert mrzmini.image._box_score(RotatedBox([80, 125], 200, 20, 0.0), thumbnail) == \
+        mrzmini.image._box_score(RotatedBox([80, 125], 400, 10, 0.0), thumbnail)
 
 
 def test_wider_view_once_per_rotation():

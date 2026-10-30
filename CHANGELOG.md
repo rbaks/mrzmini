@@ -57,8 +57,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zones without OCR. A view without any zone whose image is mostly white
   (the `TryOtherMaxWidth` condition) adds the same rotation at 1000 px, once
   per rotation; views pass 1 covered are skipped. The zones are then read by
-  decreasing score (horizontality, elongation and relative area on the
-  thumbnail; on equal scores, the order of `views`), each in the
+  decreasing score (elongation and relative area on the thumbnail,
+  whatever the angle; on equal scores, the order of `views`), each in the
   full-resolution image of its view, until a read satisfies `accept`. A read
   of pass 2 that is not accepted never replaces the MRZ of pass 1.
   `MRZResult.view` gives the view read. `pass1=False` runs pass 2 only

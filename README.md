@@ -162,8 +162,9 @@ Pass 2 runs only if pass 1 gives no accepted MRZ:
 1. It looks for zones on each view, in order, without OCR. A view without
    any zone whose image is mostly white adds the same rotation at 1000 px at
    the end, once per rotation. The views pass 1 covered are skipped.
-2. It scores each zone on its thumbnail: horizontal, elongated and large
-   zones first. On equal scores, the order of `views` decides.
+2. It scores each zone on its thumbnail: elongated and large zones first,
+   whatever their angle (a turned view often finds the MRZ of an upright
+   page as a vertical zone). On equal scores, the order of `views` decides.
 3. It reads the zones in that order, each in the full-resolution page turned
    as its view, and stops at the first read that `accept` accepts
    (`mrz.valid` by default).

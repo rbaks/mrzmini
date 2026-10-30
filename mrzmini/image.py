@@ -649,22 +649,22 @@ def _wider_view(view, boxes, img_binary, img):
 def _box_score(box, img_small):
     """How much `box` looks like an MRZ, from 0 to 1, on the thumbnail of its view, without extraction nor OCR.
 
-    Provisional, to be assessed against reading the views in order (see _reading_order). The
-    product of three terms, each from 0 to 1:
-      - horizontality, |sin(angle)|: 1 at |angle| = pi/2, the normal orientation of a RotatedBox, 0 for a vertical
-        box (the text of a view a quarter turn off);
+    Provisional, to be confirmed against reading the views in order (see _reading_order). The product of two
+    terms, each from 0 to 1:
       - elongation, width / height up to 10, about that of a 2-line MRZ box: a longer box is likelier a single text
         line than a better MRZ;
       - relative area, box area over thumbnail area, comparable between widths.
+
+    The angle is left out: extract_from_image straightens a box whatever its angle, and on real pages a rotated view
+    often finds the MRZ of an upright page as a vertical box (angle 0), which then reads fine.
 
     Rounded to 2 significant digits: the thumbnail does not tell more, and the same box found in two views (at 90
     and 270 degrees, the detection is almost symmetric) then gets the same score, so that the order of the views
     decides.
     """
-    horizontality = abs(np.sin(box.angle))
     elongation = min(box.width / box.height / 10.0, 1.0) if box.height > 0 else 0.0
     area = box.area / float(img_small.shape[0] * img_small.shape[1])
-    return float('%.2g' % (horizontality * elongation * area))
+    return float('%.2g' % (elongation * area))
 
 
 def _reading_order(zones):
