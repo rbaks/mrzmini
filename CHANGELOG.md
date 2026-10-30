@@ -77,9 +77,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tested on the best read so far; with `rank_key`, a valid black-tophat read
   thus skips the enlarged black-tophat variant (one OCR call fewer).
   `keep_candidates=True` fills `MRZResult.candidates`, a new field (`()` by
-  default), with every read made in both passes, one per OCR call (not the
-  text read upside down before flipping the zone), kept or not, also when
-  `mrz` is `None`: best first by
+  default), with every read made in both passes, kept or not, also when
+  `mrz` is `None`: one per OCR call, plus the `CNI_FR` reading that
+  `from_ocr` discarded (even without `rank_key`), but neither the text read
+  upside down before flipping the zone nor the empty read of a zone whose
+  first OCR call the deadline skipped. Best first by
   `rank_key` (or `valid_score`), in reading order on a tie, without any
   image, each with `aux['method']` (now also for the variants not kept),
   `aux['raw_text']` and `aux['view']`. It changes neither `mrz` (but for
