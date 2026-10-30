@@ -34,6 +34,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Loader` raises `TypeError` for an unsupported input type, instead of
   returning `None` and failing later in the pipeline. This includes
   `pathlib.Path` and `bytearray`, which already failed in 0.2.0.
+- Requires Pillow 10.4 or later (was 9). Pillow 9 reads a 16-bit grayscale
+  PNG as 32-bit integers, so the same image in memory and as PNG differed.
 
 ## [0.2.0] - 2026-10-29
 

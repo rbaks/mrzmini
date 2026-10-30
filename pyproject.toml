@@ -12,7 +12,7 @@ authors = [
 keywords = ["mrz", "passport", "ocr", "tesseract", "id-document", "passporteye"]
 dependencies = [
     "numpy>=1.24",
-    "pillow>=9",
+    "pillow>=10.4",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
