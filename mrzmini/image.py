@@ -12,6 +12,9 @@ BoxToMRZ now reports 'direct').
 Author of original: Konstantin Tretyakov. License: MIT.
 '''
 import io
+import operator
+import time
+from dataclasses import dataclass
 
 import numpy as np
 from PIL import Image
@@ -22,6 +25,37 @@ from .pipeline import Pipeline
 from .geometry import RotatedBox
 from .ocr import ocr, _check_lang
 from .text import MRZ
+
+
+class OCRBudget(object):
+    """Bounds the OCR calls of one read: at most `max_calls` calls, and no step started after `deadline`, an
+    instant on the time.monotonic() clock. None: no bound. ValueError if max_calls is negative.
+
+    `calls` counts the calls to mrzmini.image.ocr; `exhausted` is set when a bound stopped the read. Not
+    thread-safe: one budget per read, never shared between concurrent reads.
+    """
+
+    def __init__(self, max_calls=None, deadline=None):
+        if max_calls is not None:
+            max_calls = operator.index(max_calls)
+            if max_calls < 0:
+                raise ValueError('max_ocr_calls=%d: expected 0 or more' % max_calls)
+        self.max_calls = max_calls
+        self.deadline = deadline
+        self.calls = 0
+        self.exhausted = False
+
+    def time_left(self):
+        """Seconds left before the deadline (negative once passed), None without deadline."""
+        return None if self.deadline is None else self.deadline - time.monotonic()
+
+    def spent(self):
+        """True, and `exhausted` set, if no further step may start: max_calls calls made or deadline passed."""
+        if self.max_calls is not None and self.calls >= self.max_calls:
+            self.exhausted = True
+        elif self.deadline is not None and self.time_left() <= 0:
+            self.exhausted = True
+        return self.exhausted
 
 
 class Loader(object):
@@ -227,19 +261,26 @@ class FindFirstValidMRZ(object):
     __provides__ = ['box_idx', 'roi', 'text', 'mrz']
     __depends__ = ['boxes', 'img', 'img_small', 'scale_factor', '__data__']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None):
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None):
         """
         :param lang: the tesseract model, see BoxToMRZ
+        :param accept: stops at the first box whose MRZ satisfies it, see BoxToMRZ
+        :param budget: an OCRBudget, shared with BoxToMRZ and checked before each box. Once spent, the best
+            MRZ read so far is returned.
         """
-        self.box_to_mrz = BoxToMRZ(use_original_image, extra_cmdline_params=extra_cmdline_params, lang=lang)
+        self.budget = budget if budget is not None else OCRBudget()
+        self.box_to_mrz = BoxToMRZ(use_original_image, extra_cmdline_params=extra_cmdline_params, lang=lang,
+                                   accept=accept, budget=self.budget)
 
     def __call__(self, boxes, img, img_small, scale_factor, data):
         mrzs = []
         data['__debug__mrz'] = []
         for i, b in enumerate(boxes):
+            if self.budget.spent():
+                break
             roi, text, mrz = self.box_to_mrz(b, img, img_small, scale_factor)
             data['__debug__mrz'].append((roi, text, mrz))
-            if mrz.valid:
+            if self.box_to_mrz.accepts(mrz):
                 return i, roi, text, mrz
             elif mrz.valid_score > 0:
                 mrzs.append((i, roi, text, mrz))
@@ -256,22 +297,43 @@ class BoxToMRZ(object):
     __provides__ = ['roi', 'text', 'mrz']
     __depends__ = ['box', 'img', 'img_small', 'scale_factor']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None):
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None, accept=None, budget=None):
         """
         :param use_original_image: when True, the ROI is extracted from img, otherwise from img_small
         :param lang: the tesseract model passed to ocr() (a name such as 'mrz', or 'auto'); None leaves the
             choice to ocr(), i.e. the MRZMINI_TESSERACT_LANG environment variable, else tesseract's default.
             Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
+        :param accept: a predicate MRZ -> bool that stops the search: no further variant is tried once the
+            current MRZ satisfies it. None means mrz.valid, as in 0.2.0. The best variant is still chosen by
+            valid_score.
+        :param budget: an OCRBudget, checked before each variant and each OCR call. Once spent, the best
+            variant read so far is returned. With a deadline, ocr() gets the time left as timeout.
         """
         self.lang = _check_lang(lang, extra_cmdline_params)
         self.use_original_image = use_original_image
         self.extra_cmdline_params = extra_cmdline_params
+        self.accept = accept
+        self.budget = budget if budget is not None else OCRBudget()
+
+    def accepts(self, mrz):
+        return bool(self.accept(mrz)) if self.accept is not None else mrz.valid
 
     def _ocr(self, img):
-        # lang is passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
-        if self.lang is None:
-            return ocr(img, extra_cmdline_params=self.extra_cmdline_params)
-        return ocr(img, extra_cmdline_params=self.extra_cmdline_params, lang=self.lang)
+        if self.budget.spent():
+            return ''
+        self.budget.calls += 1
+        # lang and timeout are passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
+        kwargs = {}
+        if self.lang is not None:
+            kwargs['lang'] = self.lang
+        timeout = self.budget.time_left()
+        if timeout is not None:
+            kwargs['timeout'] = timeout
+        text = ocr(img, extra_cmdline_params=self.extra_cmdline_params, **kwargs)
+        if timeout is not None and self.budget.time_left() <= 0:
+            # Tesseract killed at the deadline, or done after it: the read is out of time either way
+            self.budget.exhausted = True
+        return text
 
     def __call__(self, box, img, img_small, scale_factor):
         img = img if self.use_original_image else img_small
@@ -279,7 +341,7 @@ class BoxToMRZ(object):
         roi = box.extract_from_image(img, scale)
         text = self._ocr(roi)
 
-        if '>>' in text or ('>' in text and '<' not in text):
+        if ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
             # Most probably we need to reverse the ROI
             roi = roi[::-1, ::-1]
             text = self._ocr(roi)
@@ -293,15 +355,15 @@ class BoxToMRZ(object):
         mrz = MRZ.from_ocr(text)
         mrz.aux['method'] = 'direct'
 
-        # Now try improving the result via hacks
-        if not mrz.valid:
+        # Now try improving the result via hacks, while the budget lasts
+        if not self.accepts(mrz):
             text, mrz = self._try_larger_image(roi, text, mrz)
 
         # Sometimes the filter used for enlargement is important!
-        if not mrz.valid:
+        if not self.accepts(mrz):
             text, mrz = self._try_larger_image(roi, text, mrz, 1)
 
-        if not mrz.valid:
+        if not self.accepts(mrz) and not self.budget.spent():
             text, mrz = self._try_black_tophat(roi, text, mrz)
 
         return roi, text, mrz
@@ -309,7 +371,7 @@ class BoxToMRZ(object):
     def _try_larger_image(self, roi, cur_text, cur_mrz, filter_order=3):
         """Attempts to improve the OCR result by scaling the image. If the new mrz is better, returns it, otherwise returns
         the old mrz."""
-        if roi.shape[1] <= 700:
+        if roi.shape[1] <= 700 and not self.budget.spent():
             scale_by = int(1050.0 / roi.shape[1] + 0.5)
             roi_lg = ip.rescale(roi, scale_by, order=filter_order)
             new_text = self._ocr(roi_lg)
@@ -346,12 +408,17 @@ class TryOtherMaxWidth(object):
     __provides__ = ['mrz_final']
     __depends__ = ['mrz', '__pipeline__']
 
-    def __init__(self, other_max_width=1000):
+    def __init__(self, other_max_width=1000, *, budget=None):
+        """
+        :param budget: an OCRBudget, checked before rerunning: once spent, no rerun.
+        """
         self.other_max_width = other_max_width
+        self.budget = budget if budget is not None else OCRBudget()
 
     def __call__(self, mrz, __pipeline__):
         # We'll only try this if we see that img_binary.mean() is very small or img.mean() is very large (i.e. image is mostly white).
-        if mrz is None and (__pipeline__['img_binary'].mean() < 0.01 or __pipeline__['img'].mean() > 0.95):
+        if mrz is None and (__pipeline__['img_binary'].mean() < 0.01 or __pipeline__['img'].mean() > 0.95) \
+                and not self.budget.spent():
             __pipeline__.replace_component('scaler', Scaler(self.other_max_width))
             new_mrz = __pipeline__['mrz']
             if new_mrz is not None:
@@ -363,21 +430,25 @@ class TryOtherMaxWidth(object):
 class MRZPipeline(Pipeline):
     """This is the "currently best-performing" pipeline for parsing MRZ from a given image file."""
 
-    def __init__(self, file, extra_cmdline_params='', *, lang=None):
+    def __init__(self, file, extra_cmdline_params='', *, lang=None, accept=None, max_ocr_calls=None, deadline=None):
         """
         :param file: see read_mrz
         :param lang: the tesseract model, see read_mrz. If given, ValueError here if extra_cmdline_params
             also has -l.
+        :param accept, max_ocr_calls, deadline: see read_mrz_detailed. The bounds apply to the whole pipeline,
+            TryOtherMaxWidth included; self.budget (an OCRBudget) counts the OCR calls.
         """
         super(MRZPipeline, self).__init__()
         self.version = '1.0'  # In principle we might have different pipelines in use, so possible backward compatibility is an issue
         self.file = file
+        self.budget = OCRBudget(max_ocr_calls, deadline)
         self.add_component('loader', Loader(file))
         self.add_component('scaler', Scaler())
         self.add_component('boone', BooneTransform())
         self.add_component('box_locator', MRZBoxLocator())
-        self.add_component('mrz', FindFirstValidMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang))
-        self.add_component('other_max_width', TryOtherMaxWidth())
+        self.add_component('mrz', FindFirstValidMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang,
+                                                    accept=accept, budget=self.budget))
+        self.add_component('other_max_width', TryOtherMaxWidth(budget=self.budget))
 
         # Step used by extract_mrz_rois (not even invoked by the standard result method)
         self.add_component('extractor', ExtractAllBoxes())
@@ -406,3 +477,57 @@ def read_mrz(file, save_roi=False, extra_cmdline_params='', *, lang=None):
     if mrz is not None and save_roi:
         mrz.aux['roi'] = p['roi']
     return mrz
+
+
+@dataclass(frozen=True)
+class MRZResult(object):
+    """The outcome of read_mrz_detailed, also when no MRZ was read."""
+
+    #: The MRZ read, as read_mrz returns it without accept and bounds; None if no read has a positive score
+    mrz: MRZ | None
+    #: accept(mrz), or mrz.valid without accept; False if mrz is None
+    accepted: bool
+    #: (rotation, thumbnail width) the MRZ was found with: (0, 250), or (0, 1000) after TryOtherMaxWidth;
+    #: None if mrz is None
+    view: tuple[int, int] | None
+    #: Calls to mrzmini.image.ocr made by this read, cut ones included
+    ocr_calls: int
+    #: Duration of the whole call in seconds, on the time.monotonic() clock
+    elapsed_s: float
+    #: True if max_ocr_calls or deadline stopped the read before its end, or the deadline passed during an OCR call
+    budget_exhausted: bool
+
+
+def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, accept=None, max_ocr_calls=None, deadline=None):
+    """Like read_mrz, but returns an MRZResult, with the OCR calls counted and optionally bounded.
+
+    :param file, extra_cmdline_params, lang: see read_mrz.
+    :param accept: a predicate MRZ -> bool, replacing mrz.valid as the condition that stops the search: no further
+        variant of a box and no further box once a read satisfies it. Otherwise the pipeline is unchanged (best
+        variant by valid_score, best box with a positive valid_score, TryOtherMaxWidth when there is none).
+    :param max_ocr_calls: maximum number of OCR calls for the whole read; ValueError if negative. 0 runs no OCR.
+    :param deadline: an instant on the time.monotonic() clock. No step starts after it, and each tesseract run gets
+        the time left as timeout (killed then, read as empty). Steps without OCR (loading, scaling, box detection,
+        ROI extraction, black-tophat) are not interrupted. If the deadline has already passed, the file is not even
+        loaded.
+
+    When a bound is reached, the read stops without exception and returns the best MRZ read so far, with
+    budget_exhausted=True. With the default parameters, the OCR calls and .mrz are those of read_mrz.
+    """
+    start = time.monotonic()
+    p = MRZPipeline(file, extra_cmdline_params, lang=lang, accept=accept, max_ocr_calls=max_ocr_calls,
+                    deadline=deadline)
+    if deadline is not None and p.budget.time_left() <= 0:
+        # Already out of time: the file is not even loaded
+        p.budget.exhausted = True
+        mrz = None
+    else:
+        mrz = p.result
+    return MRZResult(
+        mrz=mrz,
+        accepted=mrz is not None and p.components['mrz'].box_to_mrz.accepts(mrz),
+        view=None if mrz is None else (0, p.components['scaler'].max_width),
+        ocr_calls=p.budget.calls,
+        elapsed_s=time.monotonic() - start,
+        budget_exhausted=p.budget.exhausted,
+    )
