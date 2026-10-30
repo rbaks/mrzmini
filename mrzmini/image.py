@@ -556,7 +556,8 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
     """Like read_mrz, but returns an MRZResult, with the OCR calls counted and optionally bounded, and an optional
     second pass on rotated or wider views.
 
-    :param file, extra_cmdline_params, lang: see read_mrz.
+    :param file, extra_cmdline_params, lang: see read_mrz. A PDF without an embedded JPEG image gives an MRZResult
+        with mrz None and no OCR call, where read_mrz fails.
     :param pass1: run pass 1, the read_mrz pipeline. False runs pass 2 only, so that the caller can run pass 1 on all
         its pages first; ValueError if views is then empty.
     :param views: the views of pass 2, run when pass 1 is off or its MRZ does not satisfy accept: (rotation,
@@ -623,6 +624,9 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
     if deadline is not None and budget.time_left() <= 0:
         # Already out of time: the file is not even loaded
         budget.exhausted = True
+    elif (img := p['img'] if pass1 else Loader(file)()) is None:
+        # A PDF without an embedded JPEG image: no MRZ, instead of failing on img.shape as read_mrz does
+        pass
     else:
         covered = set()
         if pass1:
@@ -635,7 +639,6 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
             view = None if mrz is None else (0, final_width)
             covered = {(0, 250), (0, final_width)}
         if views and not (mrz is not None and box_to_mrz.accepts(mrz)):
-            img = p['img'] if pass1 else Loader(file)()
             for zone, zone_mrz in _read_zones(_locate_zones(img, views, covered, budget), img, box_to_mrz):
                 _note_view(reads, read_views, zone.view)
                 # Reads not accepted are only candidates
