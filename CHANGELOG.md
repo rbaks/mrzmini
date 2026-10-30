@@ -66,6 +66,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   budget and deadline cover both passes, and are also checked before each
   view. `mrzmini.ROTATED_VIEWS = ((270, 250), (90, 250), (90, 500), (270,
   500))`. With `views=()`, the OCR calls and the result are unchanged.
+- Ranking and candidates: `read_mrz_detailed(..., rank_key=None,
+  keep_candidates=False)`, also keyword arguments of `MRZPipeline`,
+  `FindFirstValidMRZ` and `BoxToMRZ`. `rank_key`, a function `MRZ -> key`,
+  replaces `valid_score` wherever reads are compared: between the variants
+  of a zone (strictly greater key; the first one on a tie) and between the
+  zones (those with a positive `valid_score`; the last one on a tie). With
+  `rank_key`, the `CNI_FR` reading that `MRZ.from_ocr` computed but did not
+  return competes as a read of its own. `accept` still stops the search,
+  tested on the best read so far. `keep_candidates=True` fills
+  `MRZResult.candidates`, a new field (`()` by default), with every read made
+  in both passes, kept or not, also when `mrz` is `None`: best first by
+  `rank_key` (or `valid_score`), in reading order on a tie, without any
+  image, each with `aux['method']` (now also for the variants not kept),
+  `aux['raw_text']` and `aux['view']`. It changes neither `mrz` (but for
+  `aux['view']`), `accepted`, `view` nor the OCR calls. Without both, the
+  OCR calls and the result are unchanged.
+- `CNI_FR` API: `detection_mode` (`'prefix'`, `'shifted'` or `'line2'`),
+  `surname_truncated` and `names_truncated` (the field is full, so its last
+  name may be cut; `None` unless in `'prefix'` mode with two lines of 36
+  characters). They are `None` on the other types, `MRZ(lines)` included,
+  and not in `to_dict()`, which is unchanged. `mrzmini.looks_like_cni_fr(lines)`
+  runs the shape test of `MRZ.from_ocr` on lines already split and returns
+  the detection mode, or `None`.
 
 ### Changed
 

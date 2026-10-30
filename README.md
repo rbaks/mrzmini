@@ -105,8 +105,9 @@ is the same.
 - `accept`: a function `MRZ -> bool` that replaces `mrz.valid` as the
   condition that stops the search. When the best read so far satisfies it,
   mrzmini tries no further variant of the zone and no further zone. The best
-  read is still chosen by `valid_score`: an accepted read that does not
-  score strictly higher than the best one is not kept.
+  read is still chosen by `valid_score` (or `rank_key`, see
+  [Candidates and ranking](#candidates-and-ranking)): an accepted read that
+  does not rank strictly higher than the best one is not kept.
 - `max_ocr_calls`: maximum number of OCR calls for the whole read. `0` runs
   no OCR.
 - `deadline`: an instant on the `time.monotonic()` clock. No step starts
@@ -200,6 +201,63 @@ As in pass 1, an 8-bit grayscale image (mode `L`, or a 2D `uint8` array)
 always counts as mostly white. Each view without any zone then adds its
 1000 px view: on a 2000 px card, this added 1.3 s to the search.
 
+### Candidates and ranking
+
+Each zone is read in up to 5 variants (direct, enlarged twice, black-tophat,
+black-tophat enlarged), and the page may have several zones.
+mrzmini keeps the variant with the highest `valid_score`, then the zone
+with the highest `valid_score`. A French ID card valid on line 2 (score 71)
+can thus lose to a misread TD2 with 3 valid check digits (score 77).
+
+`rank_key` replaces `valid_score` in these choices: a function that maps an
+`MRZ` to a comparable key, the highest key winning. Ties are broken as
+before: the first variant of a zone, the last zone. Only zones with a
+`valid_score` above 0 compete, as before.
+
+```python
+def partial_rank(mrz):
+    # A French ID card valid on line 2 first, then a read with a valid check digit, then valid_score
+    return cni_fr_line2(mrz), any(getattr(mrz, 'valid_check_digits', None) or []), mrz.valid_score
+
+result = read_mrz_detailed(page, lang='auto', accept=lambda m: m.valid or cni_fr_line2(m), rank_key=partial_rank)
+```
+
+`rank_key` is called on every read, also an empty one
+(`mrz_type` is then `None`, and the check digit attributes are missing).
+
+`MRZ.from_ocr` may read a text both as a standard MRZ and as `CNI_FR`, and
+return the standard reading (its score is higher, or no check digit of line
+2 is valid). With `rank_key`, that `CNI_FR` reading competes as a read of
+its own, so that `rank_key` can prefer it. Thus `rank_key=lambda m:
+m.valid_score` may give another result than no `rank_key`.
+
+`accept` still stops the search, whatever `rank_key`, but it tests the best
+read so far: a key that ranks accepted reads first keeps them.
+
+`keep_candidates=True` fills `result.candidates` with every read made, kept
+or not, in both passes, also when `result.mrz` is `None`:
+
+```python
+result = read_mrz_detailed(page, views=ROTATED_VIEWS, keep_candidates=True)
+for mrz in result.candidates:  # best first, by rank_key or valid_score
+    mrz.aux['method'], mrz.aux['view'], mrz.aux['raw_text']
+```
+
+- The candidates are sorted from best to worst; on a tie, in reading order.
+  `result.mrz`, if any, is one of them.
+- `aux['method']` is the variant, for example `'black_tophat(rescaled(3))'`,
+  also for a read that was not kept. Only `result.mrz` has the
+  `'|max_width(1000)'` suffix, as before.
+- `aux['view']` is the view of the read, as `result.view`: `(0, 250)`,
+  `(0, 1000)` for the rerun on a wider thumbnail, or a view of pass 2.
+- The `CNI_FR` reading that `MRZ.from_ocr` did not return is a candidate
+  too, even without `rank_key`.
+- No zone image is kept.
+
+`keep_candidates` changes neither `result.mrz` (but for `aux['view']`) nor
+`accepted`, `view` or the OCR calls. Without `rank_key` and
+`keep_candidates`, the OCR calls and the result are those of `read_mrz`.
+
 ## Supported formats
 
 - ICAO: TD1, TD2, TD3, MRVA, MRVB.
@@ -217,6 +275,16 @@ always counts as mostly white. Each view without any zone then adds its
   **Index 2 is the composite check, not the expiry date.** Use the named
   attributes `valid_number`, `valid_date_of_birth` and `valid_composite`.
 - `to_dict()` does not give the expiry, optional or personal number fields.
+- `detection_mode` tells how the raw lines were recognised: `'prefix'`
+  (line 1 starts with `IDFRA`, one character off at most), `'shifted'` (the
+  same after one stray character) or `'line2'` (only line 2 has the
+  `CNI_FR` shape; line 1 may be anything).
+- `surname_truncated` is `True` if the surname field (25 characters) is full,
+  so the last name may be cut. `names_truncated` does the same for the given
+  names field (14 characters). Both are `None` unless the positions are
+  reliable: `'prefix'` mode with two lines of 36 characters.
+- These three attributes are `None` on the other types, also for
+  `MRZ(lines)`. Like `valid_format`, they are not in `to_dict()`.
 
 mrzmini does not repair the lines. If a line does not have 36 characters,
 the MRZ is not valid.
@@ -225,6 +293,20 @@ The check digits use modulo 10. Thus, some misreads pass all checks, for
 example `<` read as `K`.
 
 Only `read_mrz` and `MRZ.from_ocr` find `CNI_FR`. `MRZ(lines)` does not.
+
+`looks_like_cni_fr(lines)` runs the shape test of `MRZ.from_ocr` on lines
+you split yourself, and returns the detection mode, or `None`:
+
+```python
+from mrzmini import looks_like_cni_fr
+
+lines = [ln.replace(' ', '') for ln in text.splitlines() if ln.strip()]
+looks_like_cni_fr(lines)  # 'prefix', 'shifted', 'line2' or None
+```
+
+It does not split the text: `MRZ.from_ocr` drops the lines shorter than 20
+characters, which you may want to keep. To test only line 1 (`IDFRA`,
+maybe after one stray character), ignore `'line2'`.
 
 ## How it works
 
