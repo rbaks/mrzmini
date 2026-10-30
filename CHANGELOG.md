@@ -28,6 +28,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   environment variable is then ignored with a warning instead. When tesseract
   fails, a model missing from `--list-langs` raises `ValueError` with the
   installed models; with `'a+b'`, tesseract fails only if no model loads.
+- `read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, accept=None,
+  max_ocr_calls=None, deadline=None)` returns an `MRZResult`, a frozen
+  dataclass, also when no MRZ is read: `mrz` (what `read_mrz` returns),
+  `accepted`, `view` (`(0, 250)`, `(0, 1000)` after `TryOtherMaxWidth`, or
+  `None`), `ocr_calls`, `elapsed_s` and `budget_exhausted`. `accept`, a
+  predicate `MRZ -> bool`, replaces `mrz.valid` as the condition that stops
+  the search between the variants of a zone and between zones. Without
+  options, the OCR calls and `mrz` are those of `read_mrz`. `accept` is also
+  a keyword argument of `MRZPipeline`, `FindFirstValidMRZ` and `BoxToMRZ`.
+- OCR budget and deadline: `max_ocr_calls` bounds the calls to
+  `mrzmini.image.ocr` of a read, and `deadline` (on the `time.monotonic()`
+  clock) stops it. They are checked before each OCR call, each variant of a
+  zone, each zone and the `TryOtherMaxWidth` rerun; a passed deadline
+  prevents even loading the image. When a bound is reached, the read
+  returns the best MRZ read so far with `budget_exhausted=True`, without
+  exception. `max_ocr_calls < 0` raises `ValueError`. Steps without OCR are
+  not interrupted (overrun measured in the README). The bounds are keyword
+  arguments of `MRZPipeline`, which keeps them in `MRZPipeline.budget`, a new
+  `OCRBudget`, also a keyword argument of `FindFirstValidMRZ`, `BoxToMRZ` and
+  `TryOtherMaxWidth`. `mrzmini.ocr.ocr` has a keyword argument `timeout`:
+  tesseract is killed when it expires, and the result is `''`. It is passed
+  only with a deadline.
 
 ### Changed
 

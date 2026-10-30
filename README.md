@@ -82,6 +82,72 @@ of the process, and thus intentionally breaks parity with PassportEye.** It is
 ignored, with a warning, if `extra_cmdline_params` contains `-l`. Passing both
 `lang` and `-l` raises `ValueError`.
 
+### Detailed result, OCR budget and deadline
+
+`read_mrz_detailed` reads like `read_mrz`, but always returns an `MRZResult`,
+also when no MRZ is found. All its arguments after `file` are keywords:
+
+```python
+from mrzmini import read_mrz_detailed
+
+result = read_mrz_detailed(page, lang='auto')
+result.mrz               # what read_mrz returns: an MRZ, or None
+result.accepted          # accept(mrz), or mrz.valid without accept
+result.view              # (0, 250), or (0, 1000) if found by the rerun on a wider thumbnail
+result.ocr_calls         # OCR calls made by this read
+result.elapsed_s         # duration of the call, in seconds
+result.budget_exhausted  # True if max_ocr_calls or deadline stopped the read
+```
+
+Without options, it makes the same OCR calls as `read_mrz`, and `result.mrz`
+is the same.
+
+- `accept`: a function `MRZ -> bool` that replaces `mrz.valid` as the
+  condition that stops the search. When a read satisfies it, mrzmini tries
+  no further variant of the zone and no further zone. The best read is still
+  chosen by `valid_score`.
+- `max_ocr_calls`: maximum number of OCR calls for the whole read. `0` runs
+  no OCR.
+- `deadline`: an instant on the `time.monotonic()` clock. No step starts
+  after it. Each tesseract run gets the time left as timeout: tesseract is
+  killed then, and the call counts as an empty read. If the deadline has
+  already passed, the image is not loaded.
+
+When a bound is reached, `read_mrz_detailed` raises no exception: it returns
+the best read so far, with `budget_exhausted=True`.
+
+The bounds apply to the whole call. To never cut the normal read, make it
+without bounds, then bound only the retries with a shared deadline:
+
+```python
+import time
+
+deadline = time.monotonic() + 15
+
+def cni_fr_line2(mrz):
+    return mrz.mrz_type == 'CNI_FR' and mrz.country == 'FRA' and mrz.valid_number and mrz.valid_date_of_birth
+
+result = read_mrz_detailed(page, lang='auto', accept=lambda m: m.valid or cni_fr_line2(m))
+if not result.accepted:
+    result = read_mrz_detailed(page.rotate(270, expand=True), lang='auto', deadline=deadline)
+```
+
+Steps without OCR (loading, scaling, zone detection, zone extraction,
+black-tophat) cannot be interrupted, so a read can return after its deadline.
+With a tesseract that never answers, on a synthetic 2000 px page (Apple M5
+Pro), the maximum overrun was:
+
+- 0.18 s when the zone is found on the 250 px thumbnail: extracting the zone
+  rotates the full image;
+- 0.58 s when the deadline falls just after the read checks it, before the
+  rerun on a 1000 px thumbnail (scaling and detection).
+
+A black-tophat on a 1850 px wide zone took 0.15 s more. Expect several times
+these values on a slower CPU.
+
+With `lang='auto'`, the first OCR call of the process also runs
+`tesseract --list-langs` (about 10 ms), without time limit.
+
 ## Supported formats
 
 - ICAO: TD1, TD2, TD3, MRVA, MRVB.
