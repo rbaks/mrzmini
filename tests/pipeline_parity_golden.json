@@ -1,0 +1,1808 @@
+{
+  "comment": "Reference of tests/test_pipeline_parity.py. Regenerate only for an intended behaviour change.",
+  "generated_from": "e3dda341d04744910d0e25391723c24e623bb1fe",
+  "mrzmini_version": "0.2.0",
+  "environment": {
+    "python": "3.12.13",
+    "numpy": "2.5.4",
+    "pillow": "13.0.0"
+  },
+  "scenarios": {
+    "valid_first_call": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "valid_first_call_gray": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "24f78f7aaf74c338ca87e5ed1d46dbb006aca951025393577a09fb2d4fd3153e",
+              "uint8_sum": 10287707
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "gray_no_positive_score_then_wider": {
+      "boxes_250": 1,
+      "final_max_width": 1000,
+      "final_boxes": 0,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "24f78f7aaf74c338ca87e5ed1d46dbb006aca951025393577a09fb2d4fd3153e",
+              "uint8_sum": 10287707
+            }
+          ]
+        }
+      ],
+      "method": null,
+      "result": null
+    },
+    "extra_cmdline_params": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "-l mrz",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "-l",
+                "mrz",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "invalid_all_variants": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "7603ba8f793dfebccb2444c6e3f532d631e1ad4a55d61c3f4a3459f2955dfbfc",
+              "uint8_sum": 40788275
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "059c5687f4725ec5b39152e6f90ad12ebfade1ec629e2b24cdda3286d0b94c14",
+              "uint8_sum": 40983347
+            }
+          ]
+        },
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "feb412570f00bd983527f504b6fae850a7818445029b3f0dd6bb53782ed13a39",
+              "uint8_sum": 512437
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "4f1a97a1673b612b51e16d708cb0850ec3b38688e2082f296e3a81a4cbeba61f",
+              "uint8_sum": 2226161
+            }
+          ]
+        }
+      ],
+      "method": "black_tophat",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 81,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<11",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "1",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": false,
+        "valid_personal_number": true,
+        "method": "black_tophat"
+      }
+    },
+    "flipped": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        },
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "flipped_then_invalid": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        },
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "574fddb780cad562993798ebd5294698edaadb5eb1581f09d5fb44674311bf5a",
+              "uint8_sum": 40788275
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "df21ef595dfa34aef62c68753bdc8c348421417ff5bd4b7fc843695108250e4b",
+              "uint8_sum": 40983347
+            }
+          ]
+        },
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "f0071c240ab9c7d283b25a54546ac567064e1a5227283e8f2852207d9161d5ce",
+              "uint8_sum": 512437
+            }
+          ]
+        },
+        {
+          "shape": [
+            158,
+            1194
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "76fe208432413e6342283af076dc20c1143627f13a72def66fc94d5925882059",
+              "uint8_sum": 2226161
+            }
+          ]
+        }
+      ],
+      "method": "black_tophat(rescaled(3))",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 81,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<11",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "1",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": false,
+        "valid_personal_number": true,
+        "method": "black_tophat(rescaled(3))"
+      }
+    },
+    "no_filler_early_exit": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            79,
+            597
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 5,
+        "raw_text": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA\n11111111111111111111111111111111111111111111",
+        "type": "AA",
+        "country": "AAA",
+        "number": "111111111",
+        "date_of_birth": "111111",
+        "expiration_date": "111111",
+        "nationality": "III",
+        "sex": "I",
+        "names": "",
+        "surname": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+        "personal_number": "11111111111111",
+        "check_number": "1",
+        "check_date_of_birth": "1",
+        "check_expiration_date": "1",
+        "check_composite": "1",
+        "check_personal_number": "1",
+        "valid_number": false,
+        "valid_date_of_birth": false,
+        "valid_expiration_date": false,
+        "valid_composite": false,
+        "valid_personal_number": false,
+        "method": "direct"
+      }
+    },
+    "cni_fr": {
+      "boxes_250": 1,
+      "final_max_width": 250,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            88,
+            604
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "5482d14bda84fa18a6e869e57de42c4c7575e1789278419a6e8a9cfd7deef139",
+              "uint8_sum": 11173096
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "CNI_FR",
+        "valid_score": 100,
+        "raw_text": "IDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123\n1507069012348JEAN<<PIERRE<<8503127M2",
+        "type": "ID",
+        "country": "FRA",
+        "number": "150706901234",
+        "issue_date": "1507",
+        "date_of_birth": "850312",
+        "nationality": "FRA",
+        "sex": "M",
+        "names": "JEAN PIERRE",
+        "surname": "MARTIN",
+        "administrative_code": "069123",
+        "check_number": "8",
+        "check_date_of_birth": "7",
+        "check_composite": "2",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_composite": true,
+        "method": "direct"
+      }
+    },
+    "no_positive_score_then_wider": {
+      "boxes_250": 1,
+      "final_max_width": 1000,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            95,
+            392
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "84d942924daec896f630065ca9cf64cb5cb17b3fe78a0fd20588d24935e884ab",
+              "uint8_sum": 8296902
+            }
+          ]
+        },
+        {
+          "shape": [
+            44,
+            408
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "fa67767d6a38977b4cc6ddb9e6cbaf3182def2adb8bcadc2770b67ae16d9ad9e",
+              "uint8_sum": 3757974
+            }
+          ]
+        }
+      ],
+      "method": "direct|max_width(1000)",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct|max_width(1000)"
+      }
+    },
+    "a4_card_wider_only": {
+      "boxes_250": 0,
+      "final_max_width": 1000,
+      "final_boxes": 1,
+      "ocr_calls": [
+        {
+          "shape": [
+            35,
+            277
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "5e30085b1e9be9c281593f3837a88922f1077ee581a1a109015f664f88aa0ed4",
+              "uint8_sum": 2014433
+            }
+          ]
+        }
+      ],
+      "method": "direct|max_width(1000)",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 100,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": true,
+        "valid_personal_number": true,
+        "method": "direct|max_width(1000)"
+      }
+    },
+    "rotated_90": {
+      "boxes_250": 2,
+      "final_max_width": 250,
+      "final_boxes": 2,
+      "ocr_calls": [
+        {
+          "shape": [
+            67,
+            310
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "a7535034195d44c9365e310e1ac38761753442c21fb57846b3abc96683063408",
+              "uint8_sum": 4552354
+            }
+          ]
+        },
+        {
+          "shape": [
+            26,
+            253
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "fb978fbb276a34e6af94663ee819a0befcac8ea8b243539e9353cbea1f91df5b",
+              "uint8_sum": 1244714
+            }
+          ]
+        }
+      ],
+      "method": null,
+      "result": null
+    },
+    "two_boxes_best_score": {
+      "boxes_250": 2,
+      "final_max_width": 250,
+      "final_boxes": 2,
+      "ocr_calls": [
+        {
+          "shape": [
+            67,
+            310
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "a7535034195d44c9365e310e1ac38761753442c21fb57846b3abc96683063408",
+              "uint8_sum": 4552354
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "a28462c5534a249ccc8392de8f17b639e504ee842c1c90e0488afd9ca939f106",
+              "uint8_sum": 40649861
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "5eb5dcf7abd7130c9689271ae57058cba2e2c2f00022def281bf5ba70087d89d",
+              "uint8_sum": 40795407
+            }
+          ]
+        },
+        {
+          "shape": [
+            67,
+            310
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "b5f67d6aba827aa8bbd0ef0d8b15fd5a0c01030f2d14f9d44cb4a97767910d60",
+              "uint8_sum": 203222
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "786205eb9b8d245b0efb460f2ae382d5f46108966f6cbcfd413f30e7338c0604",
+              "uint8_sum": 1956941
+            }
+          ]
+        },
+        {
+          "shape": [
+            26,
+            253
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "fb978fbb276a34e6af94663ee819a0befcac8ea8b243539e9353cbea1f91df5b",
+              "uint8_sum": 1244714
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "1217110a6bde948f1f4a7a599c2373fcfcbec5cdc4d04adca768c99ce122ce62",
+              "uint8_sum": 19631765
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "68679707a4224f7ddfdfd5b511b5de87069668f2ce6e9bab39e8d5f9dafa704a",
+              "uint8_sum": 19655068
+            }
+          ]
+        },
+        {
+          "shape": [
+            26,
+            253
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "13deb983857db6d8eb1466df52589576513e2a662df25366c5b30b635c76f032",
+              "uint8_sum": 261648
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "d5ade2d5b906605fe8d39ca777404b35aeb4e3e876e2baef452f3c508452c933",
+              "uint8_sum": 4185596
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 62,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C37UTO7408122F1204159ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "7",
+        "check_date_of_birth": "2",
+        "check_expiration_date": "9",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": false,
+        "valid_date_of_birth": true,
+        "valid_expiration_date": true,
+        "valid_composite": false,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "two_boxes_tie_takes_last": {
+      "boxes_250": 2,
+      "final_max_width": 250,
+      "final_boxes": 2,
+      "ocr_calls": [
+        {
+          "shape": [
+            67,
+            310
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "a7535034195d44c9365e310e1ac38761753442c21fb57846b3abc96683063408",
+              "uint8_sum": 4552354
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "a28462c5534a249ccc8392de8f17b639e504ee842c1c90e0488afd9ca939f106",
+              "uint8_sum": 40649861
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "5eb5dcf7abd7130c9689271ae57058cba2e2c2f00022def281bf5ba70087d89d",
+              "uint8_sum": 40795407
+            }
+          ]
+        },
+        {
+          "shape": [
+            67,
+            310
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "b5f67d6aba827aa8bbd0ef0d8b15fd5a0c01030f2d14f9d44cb4a97767910d60",
+              "uint8_sum": 203222
+            }
+          ]
+        },
+        {
+          "shape": [
+            201,
+            930
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "786205eb9b8d245b0efb460f2ae382d5f46108966f6cbcfd413f30e7338c0604",
+              "uint8_sum": 1956941
+            }
+          ]
+        },
+        {
+          "shape": [
+            26,
+            253
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "fb978fbb276a34e6af94663ee819a0befcac8ea8b243539e9353cbea1f91df5b",
+              "uint8_sum": 1244714
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "1217110a6bde948f1f4a7a599c2373fcfcbec5cdc4d04adca768c99ce122ce62",
+              "uint8_sum": 19631765
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "68679707a4224f7ddfdfd5b511b5de87069668f2ce6e9bab39e8d5f9dafa704a",
+              "uint8_sum": 19655068
+            }
+          ]
+        },
+        {
+          "shape": [
+            26,
+            253
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "13deb983857db6d8eb1466df52589576513e2a662df25366c5b30b635c76f032",
+              "uint8_sum": 261648
+            }
+          ]
+        },
+        {
+          "shape": [
+            104,
+            1012
+          ],
+          "dtype": "float64",
+          "positional_args": 0,
+          "keywords": [
+            "extra_cmdline_params"
+          ],
+          "extra_cmdline_params": "",
+          "tesseract": [
+            {
+              "args": [
+                "roi.bmp",
+                "out",
+                "--psm",
+                "6",
+                "-c",
+                "tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><",
+                "-c",
+                "load_system_dawg=F",
+                "-c",
+                "load_freq_dawg=F",
+                "txt"
+              ],
+              "uint8_sha256": "d5ade2d5b906605fe8d39ca777404b35aeb4e3e876e2baef452f3c508452c933",
+              "uint8_sum": 4185596
+            }
+          ]
+        }
+      ],
+      "method": "direct",
+      "result": {
+        "mrz_type": "TD3",
+        "valid_score": 44,
+        "raw_text": "P<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<<<<<<<<<\nL898902C36UTO7408123F1204150ZE184226B<<<<<10",
+        "type": "P<",
+        "country": "UTO",
+        "number": "L898902C3",
+        "date_of_birth": "740812",
+        "expiration_date": "120415",
+        "nationality": "UTO",
+        "sex": "F",
+        "names": "ANNA MARIA",
+        "surname": "ERIKSSON",
+        "personal_number": "ZE184226B<<<<<",
+        "check_number": "6",
+        "check_date_of_birth": "3",
+        "check_expiration_date": "0",
+        "check_composite": "0",
+        "check_personal_number": "1",
+        "valid_number": true,
+        "valid_date_of_birth": false,
+        "valid_expiration_date": false,
+        "valid_composite": false,
+        "valid_personal_number": true,
+        "method": "direct"
+      }
+    },
+    "blank_page": {
+      "boxes_250": 0,
+      "final_max_width": 1000,
+      "final_boxes": 0,
+      "ocr_calls": [],
+      "method": null,
+      "result": null
+    }
+  }
+}

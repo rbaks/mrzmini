@@ -14,4 +14,4 @@ testdata/
 uv.lock
 
 # Internal working notes
-mrzmini 0.2.0*.md
+*mrzmini 0.*.md
