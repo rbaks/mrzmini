@@ -505,8 +505,9 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, accept=None, 
 
     :param file, extra_cmdline_params, lang: see read_mrz.
     :param accept: a predicate MRZ -> bool, replacing mrz.valid as the condition that stops the search: no further
-        variant of a box and no further box once a read satisfies it. Otherwise the pipeline is unchanged (best
-        variant by valid_score, best box with a positive valid_score, TryOtherMaxWidth when there is none).
+        variant of a box and no further box once the best read so far satisfies it. Otherwise the pipeline is
+        unchanged (best variant by valid_score, so an accepted read that does not score strictly higher is not
+        kept; best box with a positive valid_score; TryOtherMaxWidth when there is none).
     :param max_ocr_calls: maximum number of OCR calls for the whole read; ValueError if negative. 0 runs no OCR.
     :param deadline: an instant on the time.monotonic() clock. No step starts after it, and each tesseract run gets
         the time left as timeout (killed then, read as empty). Steps without OCR (loading, scaling, box detection,
