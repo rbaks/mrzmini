@@ -314,6 +314,21 @@ def test_deadline_passed_loads_nothing():
 
 
 # ---------------------------------------------------------------------------
+# a PDF without an embedded JPEG image
+# ---------------------------------------------------------------------------
+@pytest.mark.parametrize('options', [{}, {'views': mrzmini.ROTATED_VIEWS}, {'pass1': False, 'views': mrzmini.ROTATED_VIEWS}],
+                         ids=['pass1', 'both_passes', 'pass2'])
+def test_pdf_without_jpeg(tmp_path, options):
+    pdf = tmp_path / 'no_jpeg.pdf'
+    pdf.write_bytes(b'%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[]/Count 0>>endobj\n'
+                    b'trailer<</Root 1 0 R>>\n%%EOF\n')
+    with mock.patch('mrzmini.image.ocr', side_effect=AssertionError('OCR called')):
+        result = read_mrz_detailed(str(pdf), keep_candidates=True, **options)
+    assert result.mrz is None and result.view is None and result.accepted is False
+    assert result.ocr_calls == 0 and result.budget_exhausted is False and result.candidates == ()
+
+
+# ---------------------------------------------------------------------------
 # deadline, with a tesseract that does not answer
 # ---------------------------------------------------------------------------
 def test_ocr_timeout_reads_empty(monkeypatch):
