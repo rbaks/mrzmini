@@ -103,9 +103,10 @@ Without options, it makes the same OCR calls as `read_mrz`, and `result.mrz`
 is the same.
 
 - `accept`: a function `MRZ -> bool` that replaces `mrz.valid` as the
-  condition that stops the search. When a read satisfies it, mrzmini tries
-  no further variant of the zone and no further zone. The best read is still
-  chosen by `valid_score`.
+  condition that stops the search. When the best read so far satisfies it,
+  mrzmini tries no further variant of the zone and no further zone. The best
+  read is still chosen by `valid_score`: an accepted read that does not
+  score strictly higher than the best one is not kept.
 - `max_ocr_calls`: maximum number of OCR calls for the whole read. `0` runs
   no OCR.
 - `deadline`: an instant on the `time.monotonic()` clock. No step starts
