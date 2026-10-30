@@ -90,6 +90,22 @@ def test_accept_replaces_valid():
     assert record['method'] == 'direct'
 
 
+def test_accept_stops_before_black_tophat_rescale():
+    # The black-tophat read (4th call) is accepted: its rescale (5th call, a better-scoring TD3) is not tried
+    texts = [SCORE_44_A, '', '', CNI_FR_LINE2, VALID]
+    record, result = run_read_mrz_detailed(image_png('card_td3_rgb'), texts, None, accept=cni_fr_line2)
+
+    assert result.ocr_calls == 4
+    assert result.accepted is True and result.mrz.mrz_type == 'CNI_FR'
+    assert record['method'] == 'black_tophat'
+
+    # Without accept, 0.2.0 tries the rescale even after a valid black-tophat read
+    texts = [SCORE_44_A, '', '', VALID, '']
+    record, result = run_read_mrz_detailed(image_png('card_td3_rgb'), texts, None)
+    assert record == run_read_mrz(image_png('card_td3_rgb'), texts, None)
+    assert result.ocr_calls == 5 and record['method'] == 'black_tophat'
+
+
 def test_accept_with_tryothermaxwidth():
     # No positive score at 250 px: TryOtherMaxWidth still reruns, and accept applies there too
     record, result = run_read_mrz_detailed(image_png('a4_card_480'), ['', CNI_FR_LINE2], None, accept=cni_fr_line2)

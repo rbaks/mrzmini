@@ -304,8 +304,8 @@ class BoxToMRZ(object):
             choice to ocr(), i.e. the MRZMINI_TESSERACT_LANG environment variable, else tesseract's default.
             Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
         :param accept: a predicate MRZ -> bool that stops the search: no further variant is tried once the
-            current MRZ satisfies it. None means mrz.valid, as in 0.2.0. The best variant is still chosen by
-            valid_score.
+            current MRZ satisfies it. None means mrz.valid, as in 0.2.0, which tries the black-tophat rescale
+            even after a valid black-tophat read. The best variant is still chosen by valid_score.
         :param budget: an OCRBudget, checked before each variant and each OCR call. Once spent, the best
             variant read so far is returned. With a deadline, ocr() gets the time left as timeout.
         """
@@ -391,10 +391,12 @@ class BoxToMRZ(object):
             new_mrz.aux['method'] = 'black_tophat'
             cur_text, cur_mrz = new_text, new_mrz
 
-        new_text, new_mrz = self._try_larger_image(roi_b, cur_text, cur_mrz)
-        if new_mrz.valid_score > cur_mrz.valid_score:
-            new_mrz.aux['method'] = 'black_tophat(rescaled(3))'
-            cur_text, cur_mrz = new_text, new_mrz
+        # 0.2.0 tries the rescale even after a valid black-tophat read: kept without accept, for parity
+        if self.accept is None or not self.accepts(cur_mrz):
+            new_text, new_mrz = self._try_larger_image(roi_b, cur_text, cur_mrz)
+            if new_mrz.valid_score > cur_mrz.valid_score:
+                new_mrz.aux['method'] = 'black_tophat(rescaled(3))'
+                cur_text, cur_mrz = new_text, new_mrz
 
         return cur_text, cur_mrz
 
