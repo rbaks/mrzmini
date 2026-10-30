@@ -50,6 +50,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `TryOtherMaxWidth`. `mrzmini.ocr.ocr` has a keyword argument `timeout`:
   tesseract is killed when it expires, and the result is `''`. It is passed
   only with a deadline.
+- Pass 2 on rotated or wider views: `read_mrz_detailed(..., pass1=True,
+  views=())`. When pass 1 gives no MRZ that satisfies `accept`, each view
+  `(rotation, width)` (counterclockwise rotation of 0, 90, 180 or 270
+  degrees, applied with `np.rot90`, and thumbnail width) is searched for
+  zones without OCR. A view without any zone whose image is mostly white
+  (the `TryOtherMaxWidth` condition) adds the same rotation at 1000 px, once
+  per rotation; views pass 1 covered are skipped. The zones are then read by
+  decreasing score (horizontality, elongation and relative area on the
+  thumbnail; on equal scores, the order of `views`), each in the
+  full-resolution image of its view, until a read satisfies `accept`. A read
+  of pass 2 that is not accepted never replaces the MRZ of pass 1.
+  `MRZResult.view` gives the view read. `pass1=False` runs pass 2 only
+  (`ValueError` without views); an invalid view raises `ValueError`. The
+  budget and deadline cover both passes, and are also checked before each
+  view. `mrzmini.ROTATED_VIEWS = ((270, 250), (90, 250), (90, 500), (270,
+  500))`. With `views=()`, the OCR calls and the result are unchanged.
 
 ### Changed
 

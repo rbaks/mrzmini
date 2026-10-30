@@ -93,7 +93,7 @@ from mrzmini import read_mrz_detailed
 result = read_mrz_detailed(page, lang='auto')
 result.mrz               # what read_mrz returns: an MRZ, or None
 result.accepted          # accept(mrz), or mrz.valid without accept
-result.view              # (0, 250), or (0, 1000) if found by the rerun on a wider thumbnail
+result.view              # (0, 250), or (0, 1000) if found by the rerun on a wider thumbnail (see views below)
 result.ocr_calls         # OCR calls made by this read
 result.elapsed_s         # duration of the call, in seconds
 result.budget_exhausted  # True if max_ocr_calls or deadline stopped the read
@@ -118,20 +118,8 @@ When a bound is reached, `read_mrz_detailed` raises no exception: it returns
 the best read so far, with `budget_exhausted=True`.
 
 The bounds apply to the whole call. To never cut the normal read, make it
-without bounds, then bound only the retries with a shared deadline:
-
-```python
-import time
-
-deadline = time.monotonic() + 15
-
-def cni_fr_line2(mrz):
-    return mrz.mrz_type == 'CNI_FR' and mrz.country == 'FRA' and mrz.valid_number and mrz.valid_date_of_birth
-
-result = read_mrz_detailed(page, lang='auto', accept=lambda m: m.valid or cni_fr_line2(m))
-if not result.accepted:
-    result = read_mrz_detailed(page.rotate(270, expand=True), lang='auto', deadline=deadline)
-```
+without bounds, then bound only a second call with a shared deadline (see
+the example in [Rotated and wider views](#rotated-and-wider-views)).
 
 Steps without OCR (loading, scaling, zone detection, zone extraction,
 black-tophat) cannot be interrupted, so a read can return after its deadline.
@@ -148,6 +136,68 @@ these values on a slower CPU.
 
 With `lang='auto'`, the first OCR call of the process also runs
 `tesseract --list-langs` (about 10 ms), without time limit.
+
+### Rotated and wider views
+
+The normal read (pass 1) looks for the MRZ zone once, on a 250 px wide
+thumbnail of the page as it is, and again at 1000 px if the page is mostly
+white. It misses a page turned by a quarter, or a small card on a large
+scan. `views` adds a second pass, which looks for the zone on other views
+before any OCR:
+
+```python
+from mrzmini import ROTATED_VIEWS, read_mrz_detailed
+
+result = read_mrz_detailed(page, views=ROTATED_VIEWS)
+result.view  # the view the MRZ was read in, e.g. (270, 250)
+```
+
+A view is a pair `(rotation, width)`: the page turned counterclockwise by
+`rotation` degrees (0, 90, 180 or 270, like `Image.rotate`), on a thumbnail
+`width` pixels wide (never wider than the page). `ROTATED_VIEWS` is
+`((270, 250), (90, 250), (90, 500), (270, 500))`.
+
+Pass 2 runs only if pass 1 gives no accepted MRZ:
+
+1. It looks for zones on each view, in order, without OCR. A view without
+   any zone whose image is mostly white adds the same rotation at 1000 px at
+   the end, once per rotation. The views pass 1 covered are skipped.
+2. It scores each zone on its thumbnail: horizontal, elongated and large
+   zones first. On equal scores, the order of `views` decides.
+3. It reads the zones in that order, each in the full-resolution page turned
+   as its view, and stops at the first read that `accept` accepts
+   (`mrz.valid` by default).
+
+A read of pass 2 that is not accepted is not returned: `result.mrz` stays
+the MRZ of pass 1, or `None`.
+
+`pass1=False` runs pass 2 only, so you can run pass 1 on all your pages
+first. For example, accept a valid MRZ or a French ID card valid on line 2
+in the normal read, without bounds; then, if nothing is accepted, try the
+views with a deadline, accepting only a valid MRZ:
+
+```python
+import time
+
+def cni_fr_line2(mrz):
+    return mrz.mrz_type == 'CNI_FR' and mrz.country == 'FRA' and mrz.valid_number and mrz.valid_date_of_birth
+
+deadline = time.monotonic() + 15
+result = read_mrz_detailed(page, lang='auto', accept=lambda m: m.valid or cni_fr_line2(m))
+if not result.accepted:
+    result = read_mrz_detailed(page, lang='auto', pass1=False, views=ROTATED_VIEWS,
+                               accept=lambda m: m.valid, deadline=deadline)
+```
+
+`max_ocr_calls` and `deadline` cover both passes, and `ocr_calls` counts
+both. No view starts after the deadline. The zones are read only once all
+views are searched, so a deadline that passes during the search stops the
+read before any zone of pass 2 is read. Searching a 1000 px view of a
+2000 px page took 0.57 s (Apple M5 Pro).
+
+As in pass 1, an 8-bit grayscale image (mode `L`, or a 2D `uint8` array)
+always counts as mostly white. Each view without any zone then adds its
+1000 px view: on a 2000 px card, this added 1.3 s to the search.
 
 ## Supported formats
 
