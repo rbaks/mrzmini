@@ -248,10 +248,11 @@ for mrz in result.candidates:  # best first, by rank_key or valid_score
 ```
 
 - The candidates are sorted from best to worst; on a tie, in reading order.
-  `result.mrz`, if any, is one of them.
+  `result.mrz`, if any, is one of them, but in one case below.
 - A zone read upside down (`>>`) is flipped and read again: the text read
   upside down is not a candidate, the flipped read is. If the deadline skips
-  the first OCR call of a zone, the empty read is not a candidate either.
+  the first OCR call of a zone, the empty read is not a candidate either,
+  even if `accept` accepts it as `result.mrz`.
 - `aux['method']` is the variant, for example `'black_tophat(rescaled(3))'`,
   also for a read that was not kept. Only `result.mrz` has the
   `'|max_width(1000)'` suffix, as before.

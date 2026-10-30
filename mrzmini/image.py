@@ -546,7 +546,8 @@ class MRZResult(object):
     #: True if max_ocr_calls or deadline stopped the read before its end, or the deadline passed during an OCR call
     budget_exhausted: bool
     #: With keep_candidates, every read made, from the best to the worst by rank_key (valid_score without it), in
-    #: reading order on a tie; mrz is one of them. () otherwise
+    #: reading order on a tie; mrz is one of them, unless accept accepted the empty read of a zone whose first OCR
+    #: call the deadline skipped. () otherwise
     candidates: tuple[MRZ, ...] = ()
 
 
@@ -588,7 +589,8 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         stops the search, whatever rank_key, but is tested on the best read so far: rank accepted reads first so
         that they are kept. Given, it also skips the black-tophat rescale 0.2.0 tries after a valid black-tophat
         read (one OCR call fewer), since that read is accepted. accept and rank_key never see aux['view'], set
-        once the result is known, nor the '|max_width' suffix, set by TryOtherMaxWidth after its choices.
+        once the result is known. As in 0.2.0, accept sees the '|max_width' suffix TryOtherMaxWidth adds to the
+        MRZ it returns; with keep_candidates, so does rank_key when ranking the candidates.
     :param keep_candidates: fill MRZResult.candidates with every read made, one per OCR call (two with the CNI_FR
         reading from_ocr did not return, a candidate even without rank_key), in pass 1 (TryOtherMaxWidth included)
         and pass 2, kept or not, also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
