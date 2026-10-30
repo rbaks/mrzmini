@@ -481,16 +481,23 @@ def read_mrz(file, save_roi=False, extra_cmdline_params='', *, lang=None):
     return mrz
 
 
+#: A preset of four views for pages turned by a quarter, in order: see read_mrz_detailed
+ROTATED_VIEWS = ((270, 250), (90, 250), (90, 500), (270, 500))
+
+
 @dataclass(frozen=True)
 class MRZResult(object):
     """The outcome of read_mrz_detailed, also when no MRZ was read."""
 
-    #: The MRZ read, as read_mrz returns it without accept and bounds; None if no read has a positive score
+    #: The MRZ read: in pass 1, as read_mrz returns it without accept and bounds; an accepted read of pass 2
+    #: otherwise. None if neither gave one (pass 1 not run or without a read of positive score, and pass 2 without
+    #: an accepted read).
     mrz: MRZ | None
     #: accept(mrz), or mrz.valid without accept; False if mrz is None
     accepted: bool
-    #: (rotation, thumbnail width) the MRZ was found with: (0, 250), or (0, 1000) after TryOtherMaxWidth;
-    #: None if mrz is None
+    #: (rotation, thumbnail width) of the view the MRZ was read in: (0, 250) in pass 1, or (0, 1000) after
+    #: TryOtherMaxWidth; in pass 2, the view of its box, e.g. (90, 1000) for a view added because (90, 250) was
+    #: mostly white. None if mrz is None
     view: tuple[int, int] | None
     #: Calls to mrzmini.image.ocr made by this read, cut ones included
     ocr_calls: int
@@ -500,37 +507,181 @@ class MRZResult(object):
     budget_exhausted: bool
 
 
-def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, accept=None, max_ocr_calls=None, deadline=None):
-    """Like read_mrz, but returns an MRZResult, with the OCR calls counted and optionally bounded.
+def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, views=(), accept=None,
+                      max_ocr_calls=None, deadline=None):
+    """Like read_mrz, but returns an MRZResult, with the OCR calls counted and optionally bounded, and an optional
+    second pass on rotated or wider views.
 
     :param file, extra_cmdline_params, lang: see read_mrz.
+    :param pass1: run pass 1, the read_mrz pipeline. False runs pass 2 only, so that the caller can run pass 1 on all
+        its pages first; ValueError if views is then empty.
+    :param views: the views of pass 2, run when pass 1 is off or its MRZ does not satisfy accept: (rotation,
+        thumbnail width) pairs, the rotation counterclockwise in degrees (0, 90, 180 or 270, as PIL's Image.rotate)
+        and the width a positive integer; ValueError otherwise. ROTATED_VIEWS holds a preset of four views.
+        Pass 2 first locates the boxes of every view, without OCR: the loaded image is rotated (np.rot90, no copy),
+        scaled down to the width (never up) and processed as in pass 1. A view without box whose image is mostly
+        white, the TryOtherMaxWidth condition, adds the view (same rotation, 1000) at the end, once per rotation.
+        The views pass 1 covered, (0, 250) and (0, 1000) after TryOtherMaxWidth, are skipped, and so is a view
+        given twice. The boxes are then read by decreasing score (see _box_score), each in the full-resolution
+        image of its own view, until a read satisfies accept. A read of pass 2 that does not satisfy it never
+        replaces the MRZ of pass 1.
     :param accept: a predicate MRZ -> bool, replacing mrz.valid as the condition that stops the search: no further
         variant of a box and no further box once the best read so far satisfies it. Otherwise the pipeline is
         unchanged (best variant by valid_score, so an accepted read that does not score strictly higher is not
-        kept; best box with a positive valid_score; TryOtherMaxWidth when there is none).
-    :param max_ocr_calls: maximum number of OCR calls for the whole read; ValueError if negative. 0 runs no OCR.
+        kept; best box with a positive valid_score; TryOtherMaxWidth when there is none). If the MRZ of pass 1
+        satisfies it, pass 2 does not run.
+    :param max_ocr_calls: maximum number of OCR calls for the whole read, both passes; ValueError if negative. 0
+        runs no OCR.
     :param deadline: an instant on the time.monotonic() clock. No step starts after it, and each tesseract run gets
         the time left as timeout (killed then, read as empty). Steps without OCR (loading, scaling, box detection,
-        ROI extraction, black-tophat) are not interrupted. If the deadline has already passed, the file is not even
-        loaded.
+        ROI extraction, black-tophat) are not interrupted, but no view of pass 2 starts after it. If the deadline
+        has already passed, the file is not even loaded.
 
     When a bound is reached, the read stops without exception and returns the best MRZ read so far, with
     budget_exhausted=True. With the default parameters, the OCR calls and .mrz are those of read_mrz.
     """
     start = time.monotonic()
-    p = MRZPipeline(file, extra_cmdline_params, lang=lang, accept=accept, max_ocr_calls=max_ocr_calls,
-                    deadline=deadline)
-    if deadline is not None and p.budget.time_left() <= 0:
-        # Already out of time: the file is not even loaded
-        p.budget.exhausted = True
-        mrz = None
+    views = _check_views(views)
+    if not pass1 and not views:
+        raise ValueError('pass1=False needs views')
+    if pass1:
+        p = MRZPipeline(file, extra_cmdline_params, lang=lang, accept=accept, max_ocr_calls=max_ocr_calls,
+                        deadline=deadline)
+        budget, box_to_mrz = p.budget, p.components['mrz'].box_to_mrz
     else:
-        mrz = p.result
+        budget = OCRBudget(max_ocr_calls, deadline)
+        box_to_mrz = BoxToMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang, accept=accept, budget=budget)
+
+    mrz = view = None
+    if deadline is not None and budget.time_left() <= 0:
+        # Already out of time: the file is not even loaded
+        budget.exhausted = True
+    else:
+        covered = set()
+        if pass1:
+            mrz = p.result
+            final_width = p.components['scaler'].max_width
+            view = None if mrz is None else (0, final_width)
+            covered = {(0, 250), (0, final_width)}
+        if views and not (mrz is not None and box_to_mrz.accepts(mrz)):
+            img = p['img'] if pass1 else Loader(file)()
+            for zone, zone_mrz in _read_zones(_locate_zones(img, views, covered, budget), img, box_to_mrz):
+                # Reads not accepted are dropped for now
+                if box_to_mrz.accepts(zone_mrz):
+                    mrz, view = zone_mrz, zone.view
+                    break
     return MRZResult(
         mrz=mrz,
-        accepted=mrz is not None and p.components['mrz'].box_to_mrz.accepts(mrz),
-        view=None if mrz is None else (0, p.components['scaler'].max_width),
-        ocr_calls=p.budget.calls,
+        accepted=mrz is not None and box_to_mrz.accepts(mrz),
+        view=view,
+        ocr_calls=budget.calls,
         elapsed_s=time.monotonic() - start,
-        budget_exhausted=p.budget.exhausted,
+        budget_exhausted=budget.exhausted,
     )
+
+
+# ---------------------------------------------------------------------------
+# Pass 2 of read_mrz_detailed
+# ---------------------------------------------------------------------------
+def _check_views(views):
+    """views as a tuple of (rotation, width) pairs of ints; ValueError if one is not a pair of integers, a rotation
+    is not 0, 90, 180 or 270, or a width is not positive."""
+    checked = []
+    for v in views:
+        try:
+            rotation, width = v
+            rotation, width = operator.index(rotation), operator.index(width)
+        except (TypeError, ValueError):
+            raise ValueError('view %r: expected a pair (rotation, width) of integers' % (v,)) from None
+        if rotation not in (0, 90, 180, 270) or width <= 0:
+            raise ValueError('view %r: expected a rotation of 0, 90, 180 or 270 and a positive width' % (v,))
+        checked.append((rotation, width))
+    return tuple(checked)
+
+
+@dataclass(frozen=True)
+class _Zone(object):
+    """A box found in pass 2, with what is needed to read it later: the rotated image is rebuilt from the loaded one
+    (np.rot90 makes no copy), and the thumbnail is not kept."""
+
+    view: tuple[int, int]
+    box: RotatedBox
+    scale_factor: float
+    score: float
+
+
+def _locate_zones(img, views, covered, budget):
+    """Locates the boxes of each view, in order, without OCR, and returns them as _Zone, in view then box order.
+
+    Skips the views in `covered` and repeated ones; adds the view of _wider_view at the end. No view starts once the
+    budget is spent.
+    """
+    queue = list(dict.fromkeys(v for v in views if v not in covered))
+    widened = set()
+    zones = []
+    for v in queue:  # grows while iterating
+        if budget.spent():
+            break
+        rotation, width = v
+        img_small, scale_factor = Scaler(width)(np.rot90(img, rotation // 90))
+        img_binary = BooneTransform()(img_small)
+        boxes = MRZBoxLocator()(img_binary)
+        zones.extend(_Zone(v, box, scale_factor, _box_score(box, img_small)) for box in boxes)
+        wider = _wider_view(v, boxes, img_binary, img)
+        if wider is not None and rotation not in widened and wider not in queue and wider not in covered:
+            widened.add(rotation)
+            queue.append(wider)
+    return zones
+
+
+def _wider_view(view, boxes, img_binary, img):
+    """Step 3 of pass 2: for a view without box whose image is mostly white, by the condition of TryOtherMaxWidth,
+    the view to add: the same rotation at 1000 px. None otherwise.
+
+    Provisional, to be kept or dropped after measuring what it recovers. As in pass 1, img.mean() > 0.95
+    always holds for a uint8 grayscale image (0-255).
+    """
+    if not boxes and (img_binary.mean() < 0.01 or img.mean() > 0.95):
+        return view[0], 1000
+    return None
+
+
+def _box_score(box, img_small):
+    """How much `box` looks like an MRZ, from 0 to 1, on the thumbnail of its view, without extraction nor OCR.
+
+    Provisional, to be confirmed against reading the views in order (see _reading_order). The product of two
+    terms, each from 0 to 1:
+      - elongation, width / height up to 10, about that of a 2-line MRZ box: a longer box is likelier a single text
+        line than a better MRZ;
+      - relative area, box area over thumbnail area, comparable between widths.
+
+    The angle is left out: extract_from_image straightens a box whatever its angle, and on real pages a rotated view
+    often finds the MRZ of an upright page as a vertical box (angle 0), which then reads fine.
+
+    Rounded to 2 significant digits: the thumbnail does not tell more, and the same box found in two views (at 90
+    and 270 degrees, the detection is almost symmetric) then gets the same score, so that the order of the views
+    decides.
+    """
+    elongation = min(box.width / box.height / 10.0, 1.0) if box.height > 0 else 0.0
+    area = box.area / float(img_small.shape[0] * img_small.shape[1])
+    return float('%.2g' % (elongation * area))
+
+
+def _reading_order(zones):
+    """The zones of pass 2 in the order they are read: by decreasing score, then in their order (view, then box).
+
+    Replace by `return list(zones)` to read the views in their order instead.
+    """
+    return sorted(zones, key=lambda zone: -zone.score)
+
+
+def _read_zones(zones, img, box_to_mrz):
+    """Reads the zones in _reading_order with box_to_mrz, each in the full-resolution image of its view, and yields
+    (zone, mrz) for each one read. Stops when the budget of box_to_mrz is spent."""
+    for zone in _reading_order(zones):
+        if box_to_mrz.budget.spent():
+            return
+        rotated = np.rot90(img, zone.view[0] // 90)
+        # BoxToMRZ reads in img (use_original_image), so img_small is not needed
+        _roi, _text, mrz = box_to_mrz(zone.box, rotated, None, zone.scale_factor)
+        yield zone, mrz
