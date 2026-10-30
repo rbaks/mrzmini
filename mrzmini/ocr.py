@@ -116,7 +116,7 @@ def _raise_if_missing(lang, err):
                          % ('+'.join(missing), key[0], key[1], ', '.join(models) or 'none')) from err
 
 
-def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
+def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None, timeout=None):
     """Runs Tesseract on a given image and returns the recognised text.
 
     :param mrz_mode: when True (default) tesseract is configured to recognise
@@ -141,6 +141,10 @@ def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
         ``"auto"`` lists the models of ``TESSDATA_PREFIX``, not of a
         ``--tessdata-dir`` in ``extra_cmdline_params``, and does not fall back
         if a listed ``mrz`` model cannot be loaded: tesseract then fails.
+    :param timeout: time limit in seconds for the tesseract run. When it
+        expires, tesseract is killed and the result is ``''``, like an empty
+        read. None (default): no limit, as in 0.2.0. The ``--list-langs`` probe
+        of ``"auto"`` is not limited.
     """
     lang = _check_lang(lang, extra_cmdline_params)
     if img is None or img.shape[-1] == 0:  # Issue #34
@@ -178,8 +182,13 @@ def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
         if lang is not None:
             cmd += ["-l", lang]
         cmd += config + ["txt"]
+        # timeout is passed only when set, so that subprocess.run gets exactly the arguments of 0.2.0 by default
+        limit = {} if timeout is None else {'timeout': timeout}
         try:
-            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+            subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True, **limit)
+        except subprocess.TimeoutExpired:
+            # subprocess.run has killed tesseract
+            return ''
         except subprocess.CalledProcessError as err:
             # --list-langs reads TESSDATA_PREFIX: it cannot tell for another --tessdata-dir
             if lang is not None and '--tessdata-dir' not in (extra_cmdline_params or '').split():
