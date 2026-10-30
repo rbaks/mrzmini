@@ -15,8 +15,9 @@ import mrzmini
 import mrzmini.image
 from mrzmini.geometry import RotatedBox
 from mrzmini.image import ROTATED_VIEWS, MRZPipeline, Scaler, read_mrz_detailed
-from pipeline_recording import (CNI_L1, CNI_L2, SCORE_44_A, TD3_L1, TD3_L2, VALID, draw_card, glyph, image_png, on_a4,
-                                run_read_mrz_detailed)
+from pipeline_recording import (CNI_FR_LINE2, CNI_L1, CNI_L2, SCORE_44_A, TD3_L1, TD3_L2, VALID, draw_card, glyph,
+                                image_png, on_a4, run_read_mrz_detailed)
+from test_detailed import cni_fr_line2
 from test_pipeline_parity import GOLDEN_PATH, SCENARIOS
 
 
@@ -118,8 +119,9 @@ def read(image, lines, **kwargs):
         return read_mrz_detailed(image, **kwargs), fake
 
 
-def detected_views(image, **kwargs):
-    """The views whose boxes read_mrz_detailed(image, **kwargs) locates in pass 2, in order. No OCR."""
+def detected_views(image, text='', **kwargs):
+    """The views whose boxes read_mrz_detailed(image, **kwargs) locates in pass 2, in order, with an OCR that always
+    reads `text`."""
     views = []
     wider_view = mrzmini.image._wider_view
 
@@ -128,7 +130,7 @@ def detected_views(image, **kwargs):
         return wider_view(view, *args)
 
     with mock.patch('mrzmini.image._wider_view', recorded), \
-            mock.patch('mrzmini.image.ocr', return_value=''):
+            mock.patch('mrzmini.image.ocr', return_value=text):
         read_mrz_detailed(image, **kwargs)
     return views
 
@@ -287,6 +289,39 @@ def test_wider_view_once_per_rotation():
     assert detected_views(blank, views=[(0, 250), (0, 500), (180, 250)]) == [(0, 500), (180, 250), (180, 1000)]
 
 
+def test_wider_view_only_when_mostly_white():
+    # A page of RGB noise has no box in any view, but is not mostly white: no view is added
+    noise = np.random.default_rng(0).integers(0, 256, (404, 640, 3), dtype=np.uint8)
+    assert detected_views(noise, pass1=False, views=ROTATED_VIEWS) == list(ROTATED_VIEWS)
+
+
+def test_covered_views_follow_pass1():
+    # Pass 1 reads a 44 at 250 px, so TryOtherMaxWidth does not run: (0, 1000) is not covered
+    assert detected_views(image_png('card_td3_rgb'), SCORE_44_A, views=[(0, 1000), (0, 250)]) == [(0, 1000)]
+    # Pass 1 reads nothing on the A4 page, so TryOtherMaxWidth reruns it at 1000 px: (0, 1000) is covered
+    views = detected_views(image_png('a4_card_480'), views=[(0, 1000), (90, 250)])
+    assert views[0] == (90, 250) and (0, 1000) not in views
+
+
+def test_pass1_accepted_by_custom_accept_skips_views():
+    # accept decides, not mrz.valid: a CNI_FR valid on line 2 only (score 71) stops the read after pass 1
+    data = image_png('card_cni_fr_rgb')
+    with mock.patch('mrzmini.image._locate_zones', side_effect=AssertionError('pass 2 run')):
+        record, result = run_read_mrz_detailed(data, [CNI_FR_LINE2], None, views=ROTATED_VIEWS, accept=cni_fr_line2)
+    assert record == run_read_mrz_detailed(data, [CNI_FR_LINE2], None, accept=cni_fr_line2)[0]
+    assert result.accepted is True and result.mrz.valid is False and result.view == (0, 250)
+
+
+@pytest.mark.parametrize('pass1', [True, False])
+def test_pass2_forwards_ocr_options(pass1):
+    fake = mock.Mock(return_value='')
+    with mock.patch('mrzmini.image.ocr', fake):
+        result = read_mrz_detailed(PAGES['cni_90'][0](), pass1=pass1, views=ROTATED_VIEWS, lang='mrz',
+                                   extra_cmdline_params='--psm 6')
+    assert result.ocr_calls == fake.call_count > 0
+    assert all(c.kwargs == {'extra_cmdline_params': '--psm 6', 'lang': 'mrz'} for c in fake.call_args_list)
+
+
 def test_pass2_does_not_replace_pass1():
     # Pass 1 reads a 44, pass 2 valid MRZs, which accept rejects: the 44 of pass 1 is kept
     phase = []
@@ -415,10 +450,14 @@ def test_deadline_between_zones():
         clock.now += 1
         return fake(img, **kwargs)
 
-    with mock.patch('mrzmini.image.time', clock), mock.patch('mrzmini.image.ocr', slow_ocr):
+    extract = RotatedBox.extract_from_image
+    with mock.patch('mrzmini.image.time', clock), mock.patch('mrzmini.image.ocr', slow_ocr), \
+            mock.patch.object(RotatedBox, 'extract_from_image', autospec=True, side_effect=extract) as extracted:
         result = read_mrz_detailed(make(), pass1=False, views=ROTATED_VIEWS, deadline=clock.now + 1)
 
     assert result.ocr_calls == 1 and result.mrz is None and result.budget_exhausted is True
+    # Not even extracted: the full-resolution rotation is not paid after the deadline
+    assert extracted.call_count == 1
 
     # With one more second, the second zone is read
     clock = Clock()
