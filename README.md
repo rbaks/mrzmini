@@ -31,7 +31,8 @@ print(mrz.to_dict())            # mrz is None if no MRZ is found
 ```
 
 `read_mrz(file, save_roi=False, extra_cmdline_params='')` has the same
-interface and the same `MRZ` fields as in PassportEye.
+interface and the same `MRZ` fields as in PassportEye. mrzmini adds the
+keyword argument `lang` (see below).
 
 Command line:
 
@@ -51,6 +52,27 @@ mrz = read_mrz(array)      # numpy.ndarray: 2D gray, or uint8 RGB/RGBA
 
 The result is the same as with the same image saved as PNG. A 2D array keeps
 its dtype, like a grayscale file. Any other input type raises `TypeError`.
+
+### Tesseract model
+
+By default, tesseract runs without `-l`, so with its default model (`eng`), as
+in PassportEye. `lang` chooses the model:
+
+```python
+mrz = read_mrz('passport.jpg', lang='mrz')   # or 'eng', 'mrz+eng'
+mrz = read_mrz('passport.jpg', lang='auto')  # 'mrz' if installed, else the default
+```
+
+Tesseract does not ship `mrz`: put an `mrz.traineddata` in its tessdata
+directory (`TESSDATA_PREFIX`). With `'auto'`, mrzmini checks
+`tesseract --list-langs` once per process and logs a warning if `mrz` is
+missing. If an explicit model is missing, `read_mrz` raises `ValueError`.
+
+Without `lang`, mrzmini reads the `MRZMINI_TESSERACT_LANG` environment
+variable, for example `MRZMINI_TESSERACT_LANG=auto`. **It changes every read
+of the process, and thus intentionally breaks parity with PassportEye.** It is
+ignored, with a warning, if `extra_cmdline_params` contains `-l`. Passing both
+`lang` and `-l` raises `ValueError`.
 
 ## Supported formats
 

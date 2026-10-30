@@ -235,7 +235,8 @@ def thumbnail_boxes(data):
         return len(MRZPipeline(data)['boxes'])
 
 
-def run_read_mrz(data, texts, extra):
+def run_read_mrz(data, texts, extra, **kwargs):
+    """Records read_mrz(data); kwargs (such as lang) are passed on, for the other tests that reuse it."""
     fake = ScriptedOCR(texts)
     pipelines = []
     init = MRZPipeline.__init__
@@ -247,7 +248,7 @@ def run_read_mrz(data, texts, extra):
         pipelines.append(self)
 
     with mock.patch('mrzmini.image.ocr', fake), mock.patch.object(MRZPipeline, '__init__', kept_init):
-        mrz = read_mrz(data) if extra is None else read_mrz(data, False, extra)
+        mrz = read_mrz(data, **kwargs) if extra is None else read_mrz(data, False, extra, **kwargs)
 
     assert len(pipelines) == 1
     p = pipelines[0]
