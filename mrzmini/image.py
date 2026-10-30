@@ -20,7 +20,7 @@ from . import imageproc as ip
 from .pdf import extract_first_jpeg_in_pdf
 from .pipeline import Pipeline
 from .geometry import RotatedBox
-from .ocr import ocr, _check_lang_option
+from .ocr import ocr, _check_lang
 from .text import MRZ
 
 
@@ -28,8 +28,8 @@ class Loader(object):
     """Loads `file` to `img`.
 
     `file` may be a path (str, PDF included), bytes, a binary stream, a PIL.Image.Image (converted like a
-    decoded file, without Image.open) or a numpy.ndarray: 2D as grayscale with its dtype kept, 3D uint8 with
-    3 or 4 channels as RGB(A). Any other type raises TypeError.
+    decoded file, without Image.open) or a numpy.ndarray: 2D as grayscale with its dtype kept (bool converted
+    like a 1-bit image), 3D uint8 with 3 or 4 channels as RGB(A). Any other type raises TypeError.
     """
 
     __depends__ = []
@@ -64,6 +64,13 @@ class Loader(object):
                         'a PIL.Image.Image or a numpy.ndarray' % type(self.file).__name__)
 
     def _from_array(self, arr):
+        if arr.size == 0 or not (arr.dtype == bool or np.issubdtype(arr.dtype, np.integer)
+                                 or np.issubdtype(arr.dtype, np.floating)):
+            raise TypeError('unsupported array of shape %s and dtype %s: expected a non-empty array of numbers'
+                            % (arr.shape, arr.dtype))
+        if arr.ndim == 2 and arr.dtype == bool:
+            # Like a 1-bit image file (mode '1'), converted to luma: kept as bool, no box would be found
+            return ip.to_gray(Image.fromarray(arr))
         if arr.ndim == 2:
             return arr
         if arr.ndim == 3 and arr.dtype == np.uint8 and arr.shape[-1] in (3, 4):
@@ -254,12 +261,11 @@ class BoxToMRZ(object):
         :param use_original_image: when True, the ROI is extracted from img, otherwise from img_small
         :param lang: the tesseract model passed to ocr() (a name such as 'mrz', or 'auto'); None leaves the
             choice to ocr(), i.e. the MRZMINI_TESSERACT_LANG environment variable, else tesseract's default.
-            ValueError if extra_cmdline_params also has -l.
+            Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
         """
-        _check_lang_option(lang, extra_cmdline_params)
+        self.lang = _check_lang(lang, extra_cmdline_params)
         self.use_original_image = use_original_image
         self.extra_cmdline_params = extra_cmdline_params
-        self.lang = lang
 
     def _ocr(self, img):
         # lang is passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
@@ -360,7 +366,8 @@ class MRZPipeline(Pipeline):
     def __init__(self, file, extra_cmdline_params='', *, lang=None):
         """
         :param file: see read_mrz
-        :param lang: the tesseract model, see read_mrz. ValueError here if extra_cmdline_params also has -l.
+        :param lang: the tesseract model, see read_mrz. If given, ValueError here if extra_cmdline_params
+            also has -l.
         """
         super(MRZPipeline, self).__init__()
         self.version = '1.0'  # In principle we might have different pipelines in use, so possible backward compatibility is an issue

@@ -1,7 +1,7 @@
 """In-memory image input: a PIL.Image.Image or a numpy.ndarray goes through the pipeline exactly like the same
 image encoded as PNG.
 
-No Tesseract needed: the OCR calls are recorded with the faked ocr of test_pipeline_parity.py.
+No Tesseract needed: the OCR calls are recorded with the faked ocr of pipeline_recording.py.
 """
 import io
 from unittest import mock
@@ -12,8 +12,8 @@ from PIL import Image
 
 from mrzmini import imageproc as ip
 from mrzmini.image import Loader, read_mrz
-from test_pipeline_parity import (IMAGES, SCORE_44_A, SCORE_44_B, SCORE_62_A, SCORE_62_B, SCORE_81, VALID, png,
-                                  run_read_mrz)
+from pipeline_recording import (IMAGES, SCORE_44_A, SCORE_44_B, SCORE_62_A, SCORE_62_B, SCORE_81, VALID, png,
+                                run_read_mrz, to_luma)
 
 
 @pytest.fixture(autouse=True)
@@ -118,7 +118,17 @@ def test_rgba_array_ignores_alpha():
     np.testing.assert_array_equal(got, ip.to_gray(Image.fromarray(rgba)))
 
 
-@pytest.mark.parametrize('dtype', [np.uint8, np.uint16, np.float64, bool])
+def test_bool_array_matches_png():
+    arr = to_luma(IMAGES['card_td3_rgb']()) > 128
+    expected = run_read_mrz(png(arr), [VALID], None)
+    assert expected['boxes_250'] > 0
+
+    with no_image_open():
+        assert run_read_mrz(arr, [VALID], None) == expected
+        assert run_read_mrz(Image.fromarray(arr), [VALID], None) == expected
+
+
+@pytest.mark.parametrize('dtype', [np.uint8, np.uint16, np.int32, np.float32, np.float64])
 def test_2d_array_keeps_dtype(dtype):
     arr = np.zeros((20, 30), dtype)
 
@@ -137,10 +147,20 @@ def test_2d_array_keeps_dtype(dtype):
     pytest.param(np.zeros((20, 30, 3), np.uint16), id='uint16_rgb'),
     pytest.param(np.zeros((2, 20, 30, 3), np.uint8), id='4d'),
 ])
-def test_unsupported_array_raises(arr):
+def test_unsupported_array_shape_raises(arr):
     with mock.patch('mrzmini.image.ocr', side_effect=AssertionError('OCR called')):
         with pytest.raises(TypeError, match='3 or 4 channels'):
             read_mrz(arr)
+
+
+@pytest.mark.parametrize('arr', [
+    pytest.param(np.zeros((20, 30), object), id='object'),
+    pytest.param(np.zeros((20, 30), complex), id='complex'),
+    pytest.param(np.zeros((0, 0), np.uint8), id='empty'),
+])
+def test_unsupported_array_values_raise(arr):
+    with pytest.raises(TypeError, match='non-empty array of numbers'):
+        read_mrz(arr)
 
 
 @pytest.mark.parametrize('file', [None, 42, [[0, 1], [1, 0]], bytearray(b'\x89PNG')],

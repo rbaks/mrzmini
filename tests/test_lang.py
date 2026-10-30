@@ -3,6 +3,7 @@
 No Tesseract needed: subprocess.run is faked in mrzmini.ocr, --list-langs included.
 """
 import logging
+import re
 import subprocess
 from pathlib import Path
 from unittest import mock
@@ -13,7 +14,7 @@ import pytest
 import mrzmini.ocr
 from mrzmini.image import BoxToMRZ, MRZPipeline, read_mrz
 from mrzmini.ocr import LANG_ENV, ocr
-from test_pipeline_parity import VALID, image_png, run_read_mrz
+from pipeline_recording import VALID, image_png, run_read_mrz
 
 MRZ_CONFIG = ['--psm', '6',
               '-c', 'tessedit_char_whitelist=ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789><',
@@ -103,6 +104,33 @@ def test_command_line(tesseract, lang, mrz_mode, extra, expected):
 def test_empty_image_runs_nothing(tesseract):
     assert ocr(np.zeros((20, 0)), lang='auto') == ''
     assert tesseract.list_calls == 0 and tesseract.runs == []
+
+
+@pytest.mark.parametrize('lang', ['', '  '])
+def test_empty_lang_is_none(tesseract, lang):
+    ocr(ROI, lang=lang)
+    ocr(ROI, extra_cmdline_params='-l eng', lang=lang)  # no conflict
+
+    assert tesseract.args(0) == MRZ_CONFIG + ['txt']
+    assert tesseract.args(1) == MRZ_CONFIG + ['-l', 'eng', 'txt']
+    with mock.patch('mrzmini.image.ocr', return_value='') as fake:
+        read_mrz(image_png('card_td3_rgb'), lang=lang)
+    assert all(c.kwargs.keys() == {'extra_cmdline_params'} for c in fake.call_args_list)
+
+
+def test_lang_stripped(tesseract):
+    ocr(ROI, lang=' mrz+eng ')
+    assert tesseract.args()[:2] == ['-l', 'mrz+eng']
+
+
+@pytest.mark.parametrize('lang', ['auto+eng', 'eng+auto'])
+def test_auto_not_combined(tesseract, monkeypatch, lang):
+    with pytest.raises(ValueError, match="'auto' cannot be combined"):
+        BoxToMRZ(lang=lang)
+    monkeypatch.setenv(LANG_ENV, lang)
+    with pytest.raises(ValueError, match="'auto' cannot be combined"):
+        ocr(ROI)
+    assert tesseract.runs == [] and tesseract.list_calls == 0
 
 
 # ---------------------------------------------------------------------------
@@ -212,11 +240,12 @@ def test_auto_one_probe_per_page(tesseract, warnings):
 # ---------------------------------------------------------------------------
 # Missing model
 # ---------------------------------------------------------------------------
-@pytest.mark.parametrize('lang', ['mrz', 'mrz+eng'])
-def test_missing_model(tesseract, lang):
+# With 'a+b', tesseract fails only if no model loads (5.5.3), so 'mrz+fra' with neither installed
+@pytest.mark.parametrize('lang, missing', [('mrz', 'mrz'), ('mrz+fra', 'mrz+fra')])
+def test_missing_model(tesseract, lang, missing):
     tesseract.run_error = True
 
-    with pytest.raises(ValueError, match=r"model mrz not installed .*installed: eng, osd") as exc:
+    with pytest.raises(ValueError, match=r"model %s not installed .*installed: eng, osd" % re.escape(missing)) as exc:
         ocr(ROI, lang=lang)
 
     assert isinstance(exc.value.__cause__, subprocess.CalledProcessError)

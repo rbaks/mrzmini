@@ -46,6 +46,8 @@ dev = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests", "mrzmini/text.py"]
+# Lets the tests import tests/pipeline_recording.py whatever the import mode
+pythonpath = ["tests"]
 # Runs the doctests of text.py with the suite
 addopts = "--doctest-modules"
 

@@ -11,8 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `read_mrz` and `MRZPipeline` accept an image already in memory: a
   `PIL.Image.Image`, converted like a decoded file (without `Image.open`), or
-  a `numpy.ndarray`, 2D as grayscale with its dtype kept, or 3D `uint8` with 3
-  or 4 channels as RGB(A). The OCR calls and the result are the same as with
+  a `numpy.ndarray`, 2D as grayscale with its dtype kept (a boolean array is
+  read like a 1-bit image), or 3D `uint8` with 3 or 4 channels as RGB(A). The OCR calls and the result are the same as with
   the image saved as PNG. The conversion is `mrzmini.imageproc.to_gray`, which
   `imread_gray` now calls.
 - Keyword argument `lang` on `read_mrz`, `MRZPipeline`, `FindFirstValidMRZ`,
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `extra_cmdline_params` raises `ValueError` (when the pipeline is built); the
   environment variable is then ignored with a warning instead. When tesseract
   fails, a model missing from `--list-langs` raises `ValueError` with the
-  installed models.
+  installed models; with `'a+b'`, tesseract fails only if no model loads.
 
 ### Changed
 

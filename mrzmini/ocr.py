@@ -66,17 +66,27 @@ def _sets_lang(extra_cmdline_params):
     return '-l' in (extra_cmdline_params or '').split()
 
 
-def _check_lang_option(lang, extra_cmdline_params):
-    """Raises ValueError if ``lang`` is given together with ``-l`` in ``extra_cmdline_params``."""
+def _normalize_lang(lang):
+    """Strips ``lang``, '' meaning None; ValueError for 'auto' within a combination."""
+    lang = (lang or '').strip() or None
+    if lang is not None and lang != 'auto' and 'auto' in lang.split('+'):
+        raise ValueError("lang=%r: 'auto' cannot be combined with other models" % lang)
+    return lang
+
+
+def _check_lang(lang, extra_cmdline_params):
+    """Returns ``lang`` normalized; ValueError if it is given together with ``-l`` in ``extra_cmdline_params``."""
+    lang = _normalize_lang(lang)
     if lang is not None and _sets_lang(extra_cmdline_params):
         raise ValueError('lang=%r conflicts with -l in extra_cmdline_params=%r: set the model only once'
                          % (lang, extra_cmdline_params))
+    return lang
 
 
 def _resolve_lang(lang, extra_cmdline_params):
     """The model to pass with -l, or None for no -l (see ocr)."""
     if lang is None:
-        lang = os.environ.get(LANG_ENV, '').strip() or None
+        lang = _normalize_lang(os.environ.get(LANG_ENV))
         if lang is not None and _sets_lang(extra_cmdline_params):
             _warn_once(('env', lang, extra_cmdline_params), '%s=%r ignored: extra_cmdline_params=%r already sets -l',
                        LANG_ENV, lang, extra_cmdline_params)
@@ -117,16 +127,21 @@ def ocr(img, mrz_mode=True, extra_cmdline_params='', *, lang=None):
     :param lang: the tesseract model, passed as ``-l`` (also when ``mrz_mode``
         is False): a model name such as ``"mrz"`` or ``"mrz+eng"``, or
         ``"auto"`` for ``"mrz"`` if ``tesseract --list-langs`` lists it, else no
-        ``-l`` (with a logged warning). When None, the ``MRZMINI_TESSERACT_LANG``
-        environment variable is read at each call; if it is unset too, there is
-        no ``-l`` and tesseract uses its default model (``eng``), as in
-        PassportEye. A ``lang`` argument together with ``-l`` in
-        ``extra_cmdline_params`` raises ValueError; the environment variable is
-        ignored, with a warning, when ``extra_cmdline_params`` has ``-l``.
+        ``-l`` (with a logged warning). Surrounding spaces are stripped. When
+        None or empty, the ``MRZMINI_TESSERACT_LANG`` environment variable is
+        read at each call; if it is unset too, there is no ``-l`` and tesseract
+        uses its default model (``eng``), as in PassportEye. A ``lang`` argument
+        together with ``-l`` in ``extra_cmdline_params`` raises ValueError; the
+        environment variable is ignored, with a warning, when
+        ``extra_cmdline_params`` has ``-l``.
         If tesseract fails and a model is missing from ``--list-langs``, raises
-        ValueError listing the installed models.
+        ValueError listing the installed models. With ``"a+b"``, tesseract
+        fails only if no model loads: it silently reads with those it found.
+        ``"auto"`` lists the models of ``TESSDATA_PREFIX``, not of a
+        ``--tessdata-dir`` in ``extra_cmdline_params``, and does not fall back
+        if a listed ``mrz`` model cannot be loaded: tesseract then fails.
     """
-    _check_lang_option(lang, extra_cmdline_params)
+    lang = _check_lang(lang, extra_cmdline_params)
     if img is None or img.shape[-1] == 0:  # Issue #34
         return ''
     lang = _resolve_lang(lang, extra_cmdline_params)

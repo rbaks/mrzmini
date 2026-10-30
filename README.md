@@ -51,7 +51,8 @@ mrz = read_mrz(array)      # numpy.ndarray: 2D gray, or uint8 RGB/RGBA
 ```
 
 The result is the same as with the same image saved as PNG. A 2D array keeps
-its dtype, like a grayscale file. Any other input type raises `TypeError`.
+its dtype, like a grayscale file; a boolean array is read like a 1-bit image.
+Any other input type raises `TypeError`.
 
 ### Tesseract model
 
@@ -65,8 +66,14 @@ mrz = read_mrz('passport.jpg', lang='auto')  # 'mrz' if installed, else the defa
 
 Tesseract does not ship `mrz`: put an `mrz.traineddata` in its tessdata
 directory (`TESSDATA_PREFIX`). With `'auto'`, mrzmini checks
-`tesseract --list-langs` once per process and logs a warning if `mrz` is
-missing. If an explicit model is missing, `read_mrz` raises `ValueError`.
+`tesseract --list-langs` once per tesseract binary and `TESSDATA_PREFIX`, and
+logs a warning if `mrz` is missing. `'auto'` does not see a `--tessdata-dir`
+passed in `extra_cmdline_params`. If a listed `mrz` cannot be loaded (for
+example, built for another tesseract version), the reads fail.
+
+If tesseract fails because the model is missing, `read_mrz` raises
+`ValueError` with the installed models. With `'mrz+eng'`, tesseract fails only
+if no model loads: if `mrz` is missing, it reads with `eng` only, silently.
 
 Without `lang`, mrzmini reads the `MRZMINI_TESSERACT_LANG` environment
 variable, for example `MRZMINI_TESSERACT_LANG=auto`. **It changes every read
