@@ -685,7 +685,8 @@ def looks_like_cni_fr(lines):
     off at most), 'shifted' (same, after one stray leading character) or 'line2' (only line 2 has the CNI_FR shape).
 
     `lines` are split already: this function does not split a text, since from_ocr drops the lines shorter than 20
-    characters while a caller may want exactly two non-empty lines. Spaces count as characters.
+    characters while a caller may want exactly two non-empty lines. Spaces count as characters. A string raises
+    TypeError.
     To test only line 1 (near IDFRA, maybe after one stray character), ignore 'line2'.
 
     >>> looks_like_cni_fr(['IDFRAMARTIN<<<<<<<<<<<<<<<<<<<069123', '1507069012348JEAN<<PIERRE<<8503127M2'])
@@ -697,4 +698,6 @@ def looks_like_cni_fr(lines):
     >>> looks_like_cni_fr(['I<UTOERIKSSON<<ANNA<MARIA<<<<<<<<<<<', 'D231458907UTO7408122F1204159<<<<<<<6']) is None
     True
     """
+    if isinstance(lines, str):
+        raise TypeError('lines: expected a sequence of lines, not a string: split it first')
     return MRZ._detect_cni_fr(list(lines))  # pylint: disable=protected-access
