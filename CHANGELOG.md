@@ -74,9 +74,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   zones (those with a positive `valid_score`; the last one on a tie). With
   `rank_key`, the `CNI_FR` reading that `MRZ.from_ocr` computed but did not
   return competes as a read of its own. `accept` still stops the search,
-  tested on the best read so far. `keep_candidates=True` fills
-  `MRZResult.candidates`, a new field (`()` by default), with every read made
-  in both passes, kept or not, also when `mrz` is `None`: best first by
+  tested on the best read so far; with `rank_key`, a valid black-tophat read
+  thus skips the enlarged black-tophat variant (one OCR call fewer).
+  `keep_candidates=True` fills `MRZResult.candidates`, a new field (`()` by
+  default), with every read made in both passes, one per OCR call (not the
+  text read upside down before flipping the zone), kept or not, also when
+  `mrz` is `None`: best first by
   `rank_key` (or `valid_score`), in reading order on a tie, without any
   image, each with `aux['method']` (now also for the variants not kept),
   `aux['raw_text']` and `aux['view']`. It changes neither `mrz` (but for

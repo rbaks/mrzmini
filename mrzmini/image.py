@@ -358,9 +358,12 @@ class BoxToMRZ(object):
         if self.rank_key is None:
             # The CNI_FR reading from_ocr did not return is then only a candidate
             reads = reads[:1]
-        for mrz in reads:
+        for i, mrz in enumerate(reads):
             if cur_mrz is None or self.rank(mrz) > self.rank(cur_mrz):
                 cur_text, cur_mrz = new_text, mrz
+                if i + 1 < len(reads) and self.accepts(cur_mrz):
+                    # The best read so far is accepted: the CNI_FR reading after it may not replace it
+                    break
         return cur_text, cur_mrz
 
     def _ocr(self, img):
@@ -583,14 +586,17 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         computed but did not return (a standard reading scoring higher, or no valid check digit on line 2) competes
         as a read of its own, so rank_key=lambda m: m.valid_score may pick it where None does not. accept still
         stops the search, whatever rank_key, but is tested on the best read so far: rank accepted reads first so
-        that they are kept. When choosing, reads have no aux['view'] yet, nor the '|max_width' suffix.
-    :param keep_candidates: fill MRZResult.candidates with every read made, one per OCR call (but for a text read
-        upside down, replaced by the flipped read), in pass 1 (TryOtherMaxWidth included) and pass 2, kept or not,
-        also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
+        that they are kept. Given, it also skips the black-tophat rescale 0.2.0 tries after a valid black-tophat
+        read (one OCR call fewer), since that read is accepted. accept and rank_key never see aux['view'], set
+        once the result is known, nor the '|max_width' suffix, set by TryOtherMaxWidth after its choices.
+    :param keep_candidates: fill MRZResult.candidates with every read made, one per OCR call (two with the CNI_FR
+        reading from_ocr did not return, a candidate even without rank_key), in pass 1 (TryOtherMaxWidth included)
+        and pass 2, kept or not, also when mrz is None, ranked as rank_key ranks them. No image is kept. Each one
         has aux['method'] (its variant, e.g. 'black_tophat(rescaled(3))'), aux['raw_text'] and aux['view'], the
-        view it was read in, as MRZResult.view. Also the CNI_FR reading from_ocr did not return, even without
-        rank_key. Only observes: mrz, accepted, view and the OCR calls are the same as without it (mrz, being one
-        of the candidates, then also has aux['view']).
+        view it was read in, as MRZResult.view. Two reads are no candidates: the text read upside down, replaced
+        by the flipped read; and the empty read of a zone whose first OCR call the deadline skipped, so that mrz
+        is a candidate unless accept accepts such an empty read. Only observes: mrz, accepted, view and the OCR
+        calls are the same as without it (mrz, being one of the candidates, then also has aux['view']).
 
     When a bound is reached, the read stops without exception and returns the best MRZ read so far, with
     budget_exhausted=True. With the default parameters, the OCR calls and .mrz are those of read_mrz.
@@ -608,7 +614,8 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         box_to_mrz = BoxToMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang, accept=accept, budget=budget,
                               rank_key=rank_key, keep_candidates=keep_candidates)
     reads = box_to_mrz.candidates  # None without keep_candidates
-    tagged = 0  # reads already given their view
+    # The view of each read, set on aux only once the result is known, so that accept and rank_key never see it
+    read_views = []
 
     mrz = view = None
     if deadline is not None and budget.time_left() <= 0:
@@ -619,40 +626,43 @@ def read_mrz_detailed(file, *, extra_cmdline_params='', lang=None, pass1=True, v
         if pass1:
             # The boxes at 250 px first, as p.result would, to tell their reads from those of a TryOtherMaxWidth rerun
             p['mrz']
-            tagged = _set_view(reads, tagged, (0, 250))
+            _note_view(reads, read_views, (0, 250))
             mrz = p.result
             final_width = p.components['scaler'].max_width
-            tagged = _set_view(reads, tagged, (0, final_width))
+            _note_view(reads, read_views, (0, final_width))
             view = None if mrz is None else (0, final_width)
             covered = {(0, 250), (0, final_width)}
         if views and not (mrz is not None and box_to_mrz.accepts(mrz)):
             img = p['img'] if pass1 else Loader(file)()
             for zone, zone_mrz in _read_zones(_locate_zones(img, views, covered, budget), img, box_to_mrz):
-                tagged = _set_view(reads, tagged, zone.view)
+                _note_view(reads, read_views, zone.view)
                 # Reads not accepted are only candidates
                 if box_to_mrz.accepts(zone_mrz):
                     mrz, view = zone_mrz, zone.view
                     break
+    accepted = mrz is not None and box_to_mrz.accepts(mrz)
+    candidates = ()
+    if reads is not None:
+        # sorted() is stable with reverse=True too: reading order on a tie
+        candidates = tuple(sorted(reads, key=box_to_mrz.rank, reverse=True))
+        for read, read_view in zip(reads, read_views):
+            read.aux['view'] = read_view
     return MRZResult(
         mrz=mrz,
-        accepted=mrz is not None and box_to_mrz.accepts(mrz),
+        accepted=accepted,
         view=view,
         ocr_calls=budget.calls,
         elapsed_s=time.monotonic() - start,
         budget_exhausted=budget.exhausted,
-        # sorted() is stable with reverse=True too: reading order on a tie
-        candidates=() if reads is None else tuple(sorted(reads, key=box_to_mrz.rank, reverse=True)),
+        candidates=candidates,
     )
 
 
-def _set_view(reads, start, view):
-    """Sets aux['view'] on reads[start:], the reads made in `view`; returns the number of reads with a view. reads
-    None (no candidates kept): nothing to do."""
-    if reads is None:
-        return start
-    for mrz in reads[start:]:
-        mrz.aux['view'] = view
-    return len(reads)
+def _note_view(reads, read_views, view):
+    """Appends `view` to read_views for each read of `reads` made since the last call. reads None (no candidates
+    kept): nothing to do."""
+    if reads is not None:
+        read_views.extend([view] * (len(reads) - len(read_views)))
 
 
 # ---------------------------------------------------------------------------

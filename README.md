@@ -232,10 +232,14 @@ its own, so that `rank_key` can prefer it. Thus `rank_key=lambda m:
 m.valid_score` may give another result than no `rank_key`.
 
 `accept` still stops the search, whatever `rank_key`, but it tests the best
-read so far: a key that ranks accepted reads first keeps them.
+read so far: a key that ranks accepted reads first keeps them. With
+`rank_key`, a valid black-tophat read thus stops the zone: mrzmini skips the
+enlarged black-tophat variant that it tries otherwise, as PassportEye does,
+which saves one OCR call. `accept` and `rank_key` never see `aux['view']`,
+which is set once the result is known.
 
-`keep_candidates=True` fills `result.candidates` with every read made, kept
-or not, in both passes, also when `result.mrz` is `None`:
+`keep_candidates=True` fills `result.candidates` with every read made, one
+per OCR call, kept or not, in both passes, also when `result.mrz` is `None`:
 
 ```python
 result = read_mrz_detailed(page, views=ROTATED_VIEWS, keep_candidates=True)
@@ -245,6 +249,9 @@ for mrz in result.candidates:  # best first, by rank_key or valid_score
 
 - The candidates are sorted from best to worst; on a tie, in reading order.
   `result.mrz`, if any, is one of them.
+- A zone read upside down (`>>`) is flipped and read again: the text read
+  upside down is not a candidate, the flipped read is. If the deadline skips
+  the first OCR call of a zone, the empty read is not a candidate either.
 - `aux['method']` is the variant, for example `'black_tophat(rescaled(3))'`,
   also for a read that was not kept. Only `result.mrz` has the
   `'|max_width(1000)'` suffix, as before.

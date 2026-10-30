@@ -482,3 +482,52 @@ def test_accept_tested_on_best_read_by_rank_key():
                                       accept=lambda m: m.valid, rank_key=cni_fr_first, keep_candidates=True)
     assert result.mrz.mrz_type == 'CNI_FR' and result.accepted is False and result.ocr_calls == 5
     assert [(c.mrz_type, c.aux['method']) for c in result.candidates if c.valid] == [('TD3', 'rescaled(3)')]
+
+
+# ---------------------------------------------------------------------------
+# Second review follow-up
+# ---------------------------------------------------------------------------
+def test_accepted_standard_read_not_replaced_by_discarded_cni_fr():
+    # The TD2 of from_ocr is accepted and the best so far: the CNI_FR read from the same text, ranked higher, may not
+    # replace it
+    def accept(mrz):
+        return mrz.mrz_type == 'TD2' and mrz.valid_score >= 77
+
+    for rank_key in (None, cni_fr_first):
+        _, result = run_read_mrz_detailed(image_png('card_td3_rgb'), [HIDDEN_CNI_FR], None, accept=accept,
+                                          rank_key=rank_key, keep_candidates=True)
+        assert result.mrz.mrz_type == 'TD2' and result.accepted is True and result.ocr_calls == 1
+        # Both reads are candidates
+        assert sorted(c.mrz_type for c in result.candidates) == ['CNI_FR', 'TD2']
+
+
+def test_rank_key_skips_black_tophat_rescale_after_valid_read():
+    # Same choices as without rank_key, one OCR call fewer: the valid black-tophat read is accepted
+    texts = [SCORE_44_A, SCORE_44_A, SCORE_44_A, VALID, SCORE_44_A]
+    record, result = run_read_mrz_detailed(image_png('card_td3_rgb'), texts, None, rank_key=by_score)
+    plain, plain_result = run_read_mrz_detailed(image_png('card_td3_rgb'), texts, None)
+    assert record['result'] == plain['result'] and record['method'] == 'black_tophat'
+    assert (result.ocr_calls, plain_result.ocr_calls) == (4, 5)
+
+
+def test_accept_and_rank_key_never_see_the_view():
+    # aux['view'] is set once the result is known: an accept or a rank_key reading aux sees the same reads with and
+    # without keep_candidates
+    seen = []
+
+    def accept(mrz):
+        seen.append('view' in mrz.aux)
+        return mrz.valid_score > 0 and mrz.aux.get('view') == (0, 250)
+
+    def rank_key(mrz):
+        seen.append('view' in mrz.aux)
+        return mrz.valid_score
+
+    data = image_png('card_td3_rgb')
+    results = []
+    for keep in (False, True):
+        record, result = run_read_mrz_detailed(data, [SCORE_44_A] * 5, None, accept=accept, rank_key=rank_key,
+                                               views=ROTATED_VIEWS, keep_candidates=keep)
+        results.append((record['ocr_calls'], result.accepted, result.view, result.ocr_calls))
+    assert results[0] == results[1] and results[0][1] is False
+    assert seen and not any(seen)
