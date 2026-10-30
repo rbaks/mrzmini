@@ -14,17 +14,23 @@ Author of original: Konstantin Tretyakov. License: MIT.
 import io
 
 import numpy as np
+from PIL import Image
 
 from . import imageproc as ip
 from .pdf import extract_first_jpeg_in_pdf
 from .pipeline import Pipeline
 from .geometry import RotatedBox
-from .ocr import ocr
+from .ocr import ocr, _check_lang
 from .text import MRZ
 
 
 class Loader(object):
-    """Loads `file` to `img`."""
+    """Loads `file` to `img`.
+
+    `file` may be a path (str, PDF included), bytes, a binary stream, a PIL.Image.Image (converted like a
+    decoded file, without Image.open) or a numpy.ndarray: 2D as grayscale with its dtype kept (bool converted
+    like a 1-bit image), 3D uint8 with 3 or 4 channels as RGB(A). Any other type raises TypeError.
+    """
 
     __depends__ = []
     __provides__ = ['img']
@@ -50,7 +56,27 @@ class Loader(object):
                 return self._imread(self.file)
         elif isinstance(self.file, (bytes, io.IOBase)):
             return self._imread(self.file)
-        return None
+        elif isinstance(self.file, Image.Image):
+            return ip.to_gray(self.file)
+        elif isinstance(self.file, np.ndarray):
+            return self._from_array(self.file)
+        raise TypeError('unsupported image type %s: expected a path (str), bytes, a binary stream, '
+                        'a PIL.Image.Image or a numpy.ndarray' % type(self.file).__name__)
+
+    def _from_array(self, arr):
+        if arr.size == 0 or arr.dtype.kind not in 'biuf':
+            raise TypeError('unsupported array of shape %s and dtype %s: expected a non-empty array of numbers'
+                            % (arr.shape, arr.dtype))
+        if arr.ndim == 2 and arr.dtype == bool:
+            # Like a 1-bit image file (mode '1'), converted to luma: kept as bool, no box would be found
+            return ip.to_gray(Image.fromarray(arr))
+        if arr.ndim == 2:
+            return arr
+        if arr.ndim == 3 and arr.dtype == np.uint8 and arr.shape[-1] in (3, 4):
+            # The luma product rounds differently on another memory layout (e.g. a CHW buffer seen as HWC)
+            return ip.rgb_to_gray(np.ascontiguousarray(arr))
+        raise TypeError('unsupported array of shape %s and dtype %s: expected 2D (grayscale) '
+                        'or 3D uint8 with 3 or 4 channels (RGB or RGBA)' % (arr.shape, arr.dtype))
 
 
 class Scaler(object):
@@ -201,8 +227,11 @@ class FindFirstValidMRZ(object):
     __provides__ = ['box_idx', 'roi', 'text', 'mrz']
     __depends__ = ['boxes', 'img', 'img_small', 'scale_factor', '__data__']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params=''):
-        self.box_to_mrz = BoxToMRZ(use_original_image, extra_cmdline_params=extra_cmdline_params)
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None):
+        """
+        :param lang: the tesseract model, see BoxToMRZ
+        """
+        self.box_to_mrz = BoxToMRZ(use_original_image, extra_cmdline_params=extra_cmdline_params, lang=lang)
 
     def __call__(self, boxes, img, img_small, scale_factor, data):
         mrzs = []
@@ -227,23 +256,33 @@ class BoxToMRZ(object):
     __provides__ = ['roi', 'text', 'mrz']
     __depends__ = ['box', 'img', 'img_small', 'scale_factor']
 
-    def __init__(self, use_original_image=True, extra_cmdline_params=''):
+    def __init__(self, use_original_image=True, extra_cmdline_params='', *, lang=None):
         """
         :param use_original_image: when True, the ROI is extracted from img, otherwise from img_small
+        :param lang: the tesseract model passed to ocr() (a name such as 'mrz', or 'auto'); None leaves the
+            choice to ocr(), i.e. the MRZMINI_TESSERACT_LANG environment variable, else tesseract's default.
+            Stripped, '' meaning None. ValueError if extra_cmdline_params also has -l.
         """
+        self.lang = _check_lang(lang, extra_cmdline_params)
         self.use_original_image = use_original_image
         self.extra_cmdline_params = extra_cmdline_params
+
+    def _ocr(self, img):
+        # lang is passed only when set, so that ocr() gets exactly the arguments of 0.2.0 by default
+        if self.lang is None:
+            return ocr(img, extra_cmdline_params=self.extra_cmdline_params)
+        return ocr(img, extra_cmdline_params=self.extra_cmdline_params, lang=self.lang)
 
     def __call__(self, box, img, img_small, scale_factor):
         img = img if self.use_original_image else img_small
         scale = 1.0 / scale_factor if self.use_original_image else 1.0
         roi = box.extract_from_image(img, scale)
-        text = ocr(roi, extra_cmdline_params=self.extra_cmdline_params)
+        text = self._ocr(roi)
 
         if '>>' in text or ('>' in text and '<' not in text):
             # Most probably we need to reverse the ROI
             roi = roi[::-1, ::-1]
-            text = ocr(roi, extra_cmdline_params=self.extra_cmdline_params)
+            text = self._ocr(roi)
 
         if '<' not in text:
             # Assume this is unrecoverable and stop here (TODO: this may be premature, although it saves time on useless stuff)
@@ -273,7 +312,7 @@ class BoxToMRZ(object):
         if roi.shape[1] <= 700:
             scale_by = int(1050.0 / roi.shape[1] + 0.5)
             roi_lg = ip.rescale(roi, scale_by, order=filter_order)
-            new_text = ocr(roi_lg, extra_cmdline_params=self.extra_cmdline_params)
+            new_text = self._ocr(roi_lg)
             new_mrz = MRZ.from_ocr(new_text)
             new_mrz.aux['method'] = 'rescaled(%d)' % filter_order
             if new_mrz.valid_score > cur_mrz.valid_score:
@@ -284,7 +323,7 @@ class BoxToMRZ(object):
     def _try_black_tophat(self, roi, cur_text, cur_mrz):
         roi_b = ip.black_tophat(roi, ip.disk(5))
         # There are some examples where this line basically hangs for an undetermined amount of time.
-        new_text = ocr(roi_b, extra_cmdline_params=self.extra_cmdline_params)
+        new_text = self._ocr(roi_b)
         new_mrz = MRZ.from_ocr(new_text)
         if new_mrz.valid_score > cur_mrz.valid_score:
             new_mrz.aux['method'] = 'black_tophat'
@@ -324,7 +363,12 @@ class TryOtherMaxWidth(object):
 class MRZPipeline(Pipeline):
     """This is the "currently best-performing" pipeline for parsing MRZ from a given image file."""
 
-    def __init__(self, file, extra_cmdline_params=''):
+    def __init__(self, file, extra_cmdline_params='', *, lang=None):
+        """
+        :param file: see read_mrz
+        :param lang: the tesseract model, see read_mrz. If given, ValueError here if extra_cmdline_params
+            also has -l.
+        """
         super(MRZPipeline, self).__init__()
         self.version = '1.0'  # In principle we might have different pipelines in use, so possible backward compatibility is an issue
         self.file = file
@@ -332,7 +376,7 @@ class MRZPipeline(Pipeline):
         self.add_component('scaler', Scaler())
         self.add_component('boone', BooneTransform())
         self.add_component('box_locator', MRZBoxLocator())
-        self.add_component('mrz', FindFirstValidMRZ(extra_cmdline_params=extra_cmdline_params))
+        self.add_component('mrz', FindFirstValidMRZ(extra_cmdline_params=extra_cmdline_params, lang=lang))
         self.add_component('other_max_width', TryOtherMaxWidth())
 
         # Step used by extract_mrz_rois (not even invoked by the standard result method)
@@ -343,15 +387,21 @@ class MRZPipeline(Pipeline):
         return self['mrz_final']
 
 
-def read_mrz(file, save_roi=False, extra_cmdline_params=''):
+def read_mrz(file, save_roi=False, extra_cmdline_params='', *, lang=None):
     """The main interface function to this module, encapsulating the recognition pipeline.
        Given an image filename, runs MRZPipeline on it, returning the parsed MRZ object.
 
-    :param file: A filename or a stream to read the file data from.
+    :param file: A filename (image or PDF), bytes or a binary stream to read the file data from, or an image
+        already in memory: a PIL.Image.Image, or a numpy.ndarray (2D grayscale, or 3D uint8 RGB/RGBA).
+        Any other type raises TypeError.
     :param save_roi: when this is True, the .aux['roi'] field will contain the Region of Interest where the MRZ was parsed from.
     :param extra_cmdline_params: extra parameters to the OCR.
+    :param lang: the tesseract model: a name such as 'mrz' or 'mrz+eng', or 'auto' for 'mrz' when installed.
+        None (default) reads the MRZMINI_TESSERACT_LANG environment variable at each OCR call; if unset,
+        tesseract runs without -l, as in PassportEye. ValueError if extra_cmdline_params also has -l, or if
+        tesseract fails and the model is not installed. See mrzmini.ocr.ocr.
     """
-    p = MRZPipeline(file, extra_cmdline_params)
+    p = MRZPipeline(file, extra_cmdline_params, lang=lang)
     mrz = p.result
     if mrz is not None and save_roi:
         mrz.aux['roi'] = p['roi']
