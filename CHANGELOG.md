@@ -14,15 +14,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The MRZ zone of a box tilted counterclockwise is read from the same pixels
   as in 0.3.1 again. 0.3.2 took such a box the other way round (+180°): the
   zone was upright but resampled differently, and with tesseract's default
-  model reads got worse (on 473 identity documents read fully valid by
-  0.3.1, 51 were no longer valid, none gained). The box now keeps its angle;
-  `_fixup_boxes` marks it `upside_down` and its ROI is turned back pixel for
-  pixel (`roi[::-1, ::-1]`), which is what the `>>` check of 0.3.1 did. The
-  zone stays upright without relying on that check, so the `mrz` model keeps
-  most of the 0.3.2 gain. `pipeline['rois']` is upright too. With the default
-  options, the parity scenarios give the results and the zone sizes of 0.3.1.
-  On the 36 test files of PassportEye (tesseract 5.5.3), the boxes and the
-  reads are again those of PassportEye.
+  model reads got worse (on 473 identity documents accepted in staging,
+  0.3.1 read 471 valid, 0.3.2 only 420, and none that 0.3.1 missed). The box
+  now keeps its angle; `_fixup_boxes` marks it `upside_down` and its ROI is
+  turned back pixel for pixel (`roi[::-1, ::-1]`), which is what the `>>`
+  check of 0.3.1 did. The zone stays upright without relying on that check,
+  so the `mrz` model keeps most of the 0.3.2 gain. `pipeline['rois']` is
+  upright too. With the default options, the parity scenarios give the
+  results and the zone sizes of 0.3.1. On the 36 test files of PassportEye
+  (tesseract 5.5.3), the boxes and the reads are again those of PassportEye.
 
 ## [0.3.2] - 2026-10-30
 
