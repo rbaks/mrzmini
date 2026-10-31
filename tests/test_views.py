@@ -99,7 +99,7 @@ def rotated(arr, angle):
 
 
 # Pages turned counterclockwise. On both cards, the box of the upright MRZ is near pi/2 (on the TD3 card of 640 px,
-# from_points gives -1.559, which _fixup_boxes takes the other way round), so that its ROI is upright.
+# from_points gives -1.559, which _fixup_boxes marks upside_down), so that its ROI is upright.
 PAGES = {
     'cni_90': (lambda: rotated(draw_card(CNI, 640), 90), CNI),
     'cni_270': (lambda: rotated(draw_card(CNI, 640), 270), CNI),
@@ -203,10 +203,10 @@ def test_upright_criterion():
 # Orientation of the extracted zone
 # ---------------------------------------------------------------------------
 @pytest.mark.parametrize('angle, box_angle', [
-    # from_points gives -89.31 and -86.87 degrees: extracted from there, the zone was upside down
-    (0, 90.69),
+    # from_points gives -89.31 and -86.87 degrees: the box keeps its angle, is extracted upside down and turned back
+    (0, -89.31),
     # Turned counterclockwise: the text rises to the right
-    (5, 93.13),
+    (5, -86.87),
 ])
 def test_tilted_card_extracted_upright(angle, box_angle):
     # On the colour of the card: black corners would count as ink in is_upright
@@ -215,17 +215,63 @@ def test_tilted_card_extracted_upright(angle, box_angle):
     pipeline['img'] = mrzmini.image.Loader(image)()
     boxes, rois = pipeline['boxes'], pipeline['rois']
     assert len(boxes) == 1 and np.degrees(boxes[0].angle) == pytest.approx(box_angle, abs=0.01)
+    assert boxes[0].upside_down is True
     assert is_upright(rois[0], mrz_bitmap(TD3))
 
     result, fake = read(image, TD3)
     assert result.accepted is True and result.view == (0, 250) and result.ocr_calls == 1
 
 
-@pytest.mark.parametrize('degrees, fixed', [(-89.4, 90.6), (-5, -5), (89.4, 89.4), (89.5, 90), (-89.5, 90)])
-def test_fixup_boxes(degrees, fixed):
+@pytest.mark.parametrize('degrees, fixed, upside_down', [
+    (-89.4, -89.4, True),
+    (-5, -5, False),
+    (89.4, 89.4, False),
+    (89.5, 90, False),
+    # Rounded to 90 degrees first, hence extracted upright: not to be turned back
+    (-89.5, 90, False),
+])
+def test_fixup_boxes(degrees, fixed, upside_down):
     box = RotatedBox([80, 125], 180, 29, np.radians(degrees))
     assert mrzmini.image.MRZBoxLocator()._fixup_boxes([box]) == [box]
     assert np.degrees(box.angle) == pytest.approx(fixed)
+    assert box.upside_down is upside_down
+
+
+@pytest.mark.parametrize('upside_down', [True, False, None])
+def test_extract_roi(upside_down):
+    img = np.asarray(Image.fromarray(draw_card(TD3, 640)).convert('L'), np.float64) / 255
+    box = RotatedBox([320, 330], 560, 70, np.radians(-89.31 if upside_down else 0.69))
+    if upside_down is not None:
+        box.upside_down = upside_down
+    roi = mrzmini.image._extract_roi(box, img, 1.0)
+    expected = box.extract_from_image(img, 1.0)
+    # A marked box: the ROI of 0.3.1 turned back pixel for pixel; otherwise (unmarked, or built outside _fixup_boxes)
+    # the ROI of 0.3.1 as is
+    assert np.array_equal(roi, expected[::-1, ::-1] if upside_down else expected)
+
+
+class EngOCR(OrientedOCR):
+    """Stands for tesseract's default model: also reads an upside-down MRZ, its `<` as `>` (so that BoxToMRZ turns
+    the ROI back and reads it again)."""
+
+    def __call__(self, img, **kwargs):
+        text = super().__call__(img, **kwargs)
+        if not text and is_upright(img[::-1, ::-1], self.bitmap):
+            text = self.text[::-1].replace('<', '>')
+        return text
+
+
+@pytest.mark.parametrize('ocr', [OrientedOCR, EngOCR])
+@pytest.mark.parametrize('angle', [0, 5])
+def test_tilted_card_read_upright(angle, ocr):
+    # OrientedOCR never reads `>` on an upside-down zone, as the `mrz` model: 0.3.1 did not read these cards in
+    # pass 1. EngOCR does: 0.3.1 read them, but in 2 calls. The zone is now read upright at the first call.
+    image = np.asarray(Image.fromarray(draw_card(TD3, 640)).rotate(angle, expand=True, fillcolor=(226, 229, 233)))
+    fake = ocr(TD3)
+    with mock.patch('mrzmini.image.ocr', fake):
+        result = read_mrz_detailed(image)
+    assert result.accepted is True and result.view == (0, 250) and result.ocr_calls == 1
+    assert result.mrz.valid and result.mrz.aux['method'] == 'direct'
 
 
 # ---------------------------------------------------------------------------

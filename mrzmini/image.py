@@ -237,15 +237,21 @@ class MRZBoxLocator(object):
         The box_list is fixed in-place (but also returned).
         """
         for box in box_list:
-            # from_points gives an angle in (-pi/2, pi/2]: a box near -pi/2 would be
-            # extracted turned by ~180 degrees, so take the same box the other way round.
-            if box.angle < -np.pi / 4:
-                box.angle += np.pi
             if abs(abs(box.angle) - np.pi / 2) <= 0.01:
                 box.angle = np.pi / 2
             if abs(box.angle) <= 0.01:
                 box.angle = 0.0
+            # from_points gives an angle in (-pi/2, pi/2]: a box near -pi/2 is extracted turned by ~180 degrees.
+            # BoxToMRZ turns its ROI back pixel for pixel (the angle is kept, so the ROI is the one of 0.3.1).
+            box.upside_down = bool(box.angle < -np.pi / 4)
         return box_list
+
+
+def _extract_roi(box, img, scale):
+    """The ROI of box, upright: a box _fixup_boxes marked upside_down is extracted turned by ~180 degrees, then
+    turned back pixel for pixel (the pixels 0.3.1 read once its `>>` check had flipped them)."""
+    roi = box.extract_from_image(img, scale)
+    return roi[::-1, ::-1] if getattr(box, 'upside_down', False) else roi
 
 
 class ExtractAllBoxes(object):
@@ -255,7 +261,7 @@ class ExtractAllBoxes(object):
     __depends__ = ['boxes', 'img', 'scale_factor']
 
     def __call__(self, boxes, img, scale_factor):
-        return [box.extract_from_image(img, 1.0 / scale_factor) for box in boxes]
+        return [_extract_roi(box, img, 1.0 / scale_factor) for box in boxes]
 
 
 class FindFirstValidMRZ(object):
@@ -391,7 +397,7 @@ class BoxToMRZ(object):
     def __call__(self, box, img, img_small, scale_factor):
         img = img if self.use_original_image else img_small
         scale = 1.0 / scale_factor if self.use_original_image else 1.0
-        roi = box.extract_from_image(img, scale)
+        roi = _extract_roi(box, img, scale)
         text = self._ocr(roi)
 
         if text is not None and ('>>' in text or ('>' in text and '<' not in text)) and not self.budget.spent():
