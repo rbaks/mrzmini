@@ -1,7 +1,7 @@
 {
   "comment": "Reference of tests/test_pipeline_parity.py. Regenerate only for an intended behaviour change.",
-  "generated_from": "72540bb57a4fa304ab7ac06736dad120280d88ae",
-  "mrzmini_version": "0.3.1",
+  "generated_from": "3dfda7ac956d7346bc4984aaf6db687fc5d6717e",
+  "mrzmini_version": "0.3.2",
   "environment": {
     "python": "3.12.13",
     "numpy": "2.5.4",
@@ -15,7 +15,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -39,8 +39,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         }
@@ -80,7 +80,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -104,8 +104,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "43e4610eb9a1d20052e7dbb5efaa850fb88bb080b3934178c90bde6ceff24081",
-              "uint8_sum": 10424394
+              "uint8_sha256": "344164ec057b737472fb11a7392f9775c5fc5d3612992c1c9733ecd25c7d9665",
+              "uint8_sum": 10287707
             }
           ]
         }
@@ -145,7 +145,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -169,8 +169,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "43e4610eb9a1d20052e7dbb5efaa850fb88bb080b3934178c90bde6ceff24081",
-              "uint8_sum": 10424394
+              "uint8_sha256": "344164ec057b737472fb11a7392f9775c5fc5d3612992c1c9733ecd25c7d9665",
+              "uint8_sum": 10287707
             }
           ]
         }
@@ -185,7 +185,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -211,8 +211,8 @@
                 "mrz",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         }
@@ -252,7 +252,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -276,14 +276,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -307,14 +307,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "7ca20c86687e54c3c2b1daf86e6d6dfb551b1129e81a0eabe84e3b6a9fcd6a96",
-              "uint8_sum": 41361786
+              "uint8_sha256": "574fddb780cad562993798ebd5294698edaadb5eb1581f09d5fb44674311bf5a",
+              "uint8_sum": 40788275
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -338,14 +338,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "0342b6192490e6817009e40c6fddb1e0068fc81f90b1c4d3ed23ba24014a1b9a",
-              "uint8_sum": 41529936
+              "uint8_sha256": "df21ef595dfa34aef62c68753bdc8c348421417ff5bd4b7fc843695108250e4b",
+              "uint8_sum": 40983347
             }
           ]
         },
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -369,14 +369,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "983519f87e8727d404ab254f77d32afa4b91c949968bb9f1f1bb50d32e7b6ff6",
-              "uint8_sum": 512439
+              "uint8_sha256": "f0071c240ab9c7d283b25a54546ac567064e1a5227283e8f2852207d9161d5ce",
+              "uint8_sum": 512437
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -400,8 +400,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "f3292ba932611345d8008a73e7844ddcc47747549dd85b09ec180acf8982a9ab",
-              "uint8_sum": 2198906
+              "uint8_sha256": "76fe208432413e6342283af076dc20c1143627f13a72def66fc94d5925882059",
+              "uint8_sum": 2226161
             }
           ]
         }
@@ -441,7 +441,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -465,14 +465,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         },
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -496,8 +496,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "26eec5b5c6a5bbef94cf22cead591117bd01b028745b9117f5ef488783fe731a",
-              "uint8_sum": 10422738
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
             }
           ]
         }
@@ -537,7 +537,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -561,14 +561,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         },
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -592,14 +592,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "26eec5b5c6a5bbef94cf22cead591117bd01b028745b9117f5ef488783fe731a",
-              "uint8_sum": 10422738
+              "uint8_sha256": "867c0393fd312674657026c46506b13f0c5688abd5b4753c4dc7aa890a1d593c",
+              "uint8_sum": 10286038
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -623,14 +623,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "577fe4c52420aff921b51e845f21fa2de9383b829ced88c448683039986e5323",
-              "uint8_sum": 41361786
+              "uint8_sha256": "7603ba8f793dfebccb2444c6e3f532d631e1ad4a55d61c3f4a3459f2955dfbfc",
+              "uint8_sum": 40788275
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -654,14 +654,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "251a535c1b563b5ac60787eedbc0ffcd18aa78230e63d6a9f21469509aecac7d",
-              "uint8_sum": 41529936
+              "uint8_sha256": "059c5687f4725ec5b39152e6f90ad12ebfade1ec629e2b24cdda3286d0b94c14",
+              "uint8_sum": 40983347
             }
           ]
         },
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -685,14 +685,14 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "1ad166981603dff9ed7c4621f16c62a1972c465526b36e07c1c694a84b6acb22",
-              "uint8_sum": 512439
+              "uint8_sha256": "feb412570f00bd983527f504b6fae850a7818445029b3f0dd6bb53782ed13a39",
+              "uint8_sum": 512437
             }
           ]
         },
         {
           "shape": [
-            160,
+            158,
             1194
           ],
           "dtype": "float64",
@@ -716,8 +716,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "a3494a5750ef095d74515d3b9e7eb746ffafa24ab29468beae01b30a4cf519a6",
-              "uint8_sum": 2198906
+              "uint8_sha256": "4f1a97a1673b612b51e16d708cb0850ec3b38688e2082f296e3a81a4cbeba61f",
+              "uint8_sum": 2226161
             }
           ]
         }
@@ -757,7 +757,7 @@
       "ocr_calls": [
         {
           "shape": [
-            80,
+            79,
             597
           ],
           "dtype": "float64",
@@ -781,8 +781,8 @@
                 "load_freq_dawg=F",
                 "txt"
               ],
-              "uint8_sha256": "3151dd6545a8b2a651c287e5aa2d172a09f57efb37269b29999d0348345d9b84",
-              "uint8_sum": 10422738
+              "uint8_sha256": "c0fa332c207a5230b611184439fa8f13a1bc217c3a1a70db64a58a969532d922",
+              "uint8_sum": 10286038
             }
           ]
         }
